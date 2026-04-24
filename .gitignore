@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+*.pyc
+
+# VAD dataset and generated audio features are too large for GitHub
+voice-activity-detection-sjtu-spring-2024/vad/data/
+voice-activity-detection-sjtu-spring-2024/vad/wavs/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
