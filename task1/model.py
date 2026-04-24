@@ -10,7 +10,7 @@ class ThresholdParams:
     low_threshold: float = 0.4
 
 
-class ThresholdVAD:
+class VADclassifier:
     """Threshold-based frame classifier scaffold."""
 
     def __init__(self, params: ThresholdParams):
@@ -28,7 +28,27 @@ class ThresholdVAD:
         """
         # If you use pure manual thresholding, this can be a no-op.
         # TODO: implement (or keep as no-op if you use manual thresholds)
-        raise NotImplementedError
+        if(features.shape[0]!=labels.shape[0]):
+            raise ValueError("特征和标签维度不对齐")
+        if(features.shape[0]!=2):
+            raise ValueError("特征不是2维")
+        
+        score = features[0] *0.8 + (1-features[1]) * 0.2
+        score = np.asarray(score)
+        thres = [t for t in np.arange(0.05,1,0.05)]
+        best_thre = 0.05
+        best_acc = 0
+        for thre in thres:
+            pred = np.array(score > thre).astype(dtype=int)
+            acc = np.mean(pred == labels)
+            if acc > best_acc:
+                best_acc = acc
+                best_thre = thre
+        
+        margin = 0.05 * (np.ptp(score)) + 1e-6
+        self.params.threshold = best_thre
+        self.params.high_threshold = best_thre + 0.5* margin
+        self.params.low_threshold = best_thre - 0.5* margin
 
     def score_frames(self, features: np.ndarray) -> np.ndarray:
         """Return frame-level speech scores/probabilities in [0, 1].
@@ -41,8 +61,17 @@ class ThresholdVAD:
           - threshold decoding in predict_frames/postprocess
         """
         # Score can come from simple linear combination of handcrafted features.
-        # TODO: implement
-        raise NotImplementedError
+        score = features[:,0] *0.8 + (1-features[:,1]) * 0.2
+        score = np.asarray(score)
+        s_min, s_max = float(score.min()), float(score.max())
+        if s_max > s_min:
+            score = (score - s_min) / (s_max - s_min)
+        else:
+            score = np.zeros_like(score, dtype=np.float32)
+
+        return score.astype(np.float32)
+                
+            
 
     def predict_frames(self, features: np.ndarray) -> np.ndarray:
         """Return binary frame prediction (0/1).
@@ -56,4 +85,28 @@ class ThresholdVAD:
         """
         # Usually: scores = score_frames(features) -> apply threshold rule.
         # TODO: implement
-        raise NotImplementedError
+        score = self.score_frames(features=features)
+        score = np.ndarray(score)
+        labels = []
+        state = 0
+        for sco in score:
+            if sco > self.params.high_threshold and state == 0:
+                state = 1
+            elif sco < self.params.low_threshold and state == 1:
+                state  = 0
+            labels.append(state)
+        return np.array(labels)
+
+
+# a = np.array([0.3,0.3,0.4])
+# t = 0.24
+# print(np.array(a>t).astype(np.int64))
+
+# a =[1,23]
+# print(type(np.array(a)))
+
+# print(np.arange(0.05,0.95,0.05))
+
+# a = np.array([[1,1,1],[2,2,2]])
+# print(a[0])
+# print(a[1])
