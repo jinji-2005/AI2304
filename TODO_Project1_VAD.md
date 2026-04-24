@@ -103,3 +103,49 @@
 - 若参数不一致，会导致：
   - 标签长度与特征帧数不匹配
   - Acc/AUC/EER 评估结果失真
+
+### 6.5 窗函数（Window Function）是什么，为什么要加
+- 定义：
+  - 分帧后，每一帧会乘一个长度相同的权重序列（窗口），这个权重序列就叫窗函数。
+  - 常见窗口：Hamming、Hann、Rect（全1，不加窗）。
+- 直觉理解：
+  - 直接截取一帧相当于“硬切”，帧首尾会突然跳变。
+  - 这种跳变会在频域里带来额外伪成分（频谱泄漏），让特征变脏。
+  - 加窗就是把帧两端逐渐压低，减少边界突变。
+- 数学形式：
+  - `x_windowed[n] = x_frame[n] * w[n]`
+  - 其中 `w[n]` 是窗函数权重。
+- 在本项目里的作用：
+  - 给短时能量、频谱等特征更稳定的统计基础。
+  - 对阈值法和统计模型都更友好，通常会让开发集指标更稳。
+- 典型选择：
+  - Task1 推荐 `Hamming` 作为默认窗口；
+  - 若不加窗相当于 `Rect`，一般效果会更差。
+- 简单代码示例：
+```python
+win = np.hamming(frame_length).astype(np.float32)  # shape: (frame_length,)
+frames_windowed = frames * win[None, :]            # 对每一帧逐点乘窗
+```
+
+### 6.6 对数能量（Log-Energy）与过零率（ZCR）
+- 对数能量是什么：
+  - 先计算每一帧的短时能量：`E = sum(frame^2)`。
+  - 再取对数：`logE = log(E + eps)`（`eps` 防止 `log(0)`）。
+  - 直觉：能量越大，通常语音活动越明显；取对数后数值范围更稳定，便于阈值设定。
+- 过零率（Zero-Crossing Rate, ZCR）是什么：
+  - 统计一帧中信号正负号切换的频繁程度。
+  - 切换越多，ZCR 越大；通常高频噪声/清辅音的 ZCR 偏高，浊音或静音偏低（具体依数据而变）。
+- 在 VAD 里的作用：
+  - `log-energy` 常作为主特征（区分“有声/无声”最直接）。
+  - `ZCR` 常作为辅助特征（帮助区分噪声、清音和部分边界情况）。
+  - 二者结合通常比只用单一特征更稳。
+- 常见代码写法：
+```python
+eps = 1e-8
+energy = np.sum(frames ** 2, axis=1)               # 每帧能量
+log_energy = np.log(energy + eps)                  # 对数能量
+
+signs = np.sign(frames)
+signs[signs == 0] = 1
+zcr = 0.5 * np.mean(np.abs(np.diff(signs, axis=1)), axis=1)
+```

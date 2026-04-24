@@ -3,6 +3,7 @@ import math
 import numpy as np
 from dataset import load_waveform
 from config import FrameConfig,PathConfig
+import librosa
 """
 Task1 feature flow:
 waveform -> framing -> windowing -> per-frame features -> stacked features.
@@ -61,8 +62,22 @@ def apply_window(frames: np.ndarray, window: str = "hamming") -> np.ndarray:
     """
     # Default recommendation: Hamming window for robust short-time analysis.
     # TODO: implement
-    raise NotImplementedError
+    str = str.lower()
+    if str=="hamming":
+        frame_len = frames.shape[1]
+        window = np.hamming(frame_len) # 生成一段权重函数
+        frames = frames * window
+    elif str =='hanning':
+        frame_len = frames.shape[1]
+        window = np.hanning(frame_len)
+        frames = frames * window
+    
+    return frames
 
+# a = np.array([[1,1],[1,1]])
+# window = np.hamming(2)
+# a = a* window
+# print(a)
 
 def extract_short_time_features(frames: np.ndarray) -> Dict[str, np.ndarray]:
     """Extract short-time features needed in Task1.
@@ -78,9 +93,19 @@ def extract_short_time_features(frames: np.ndarray) -> Dict[str, np.ndarray]:
     # - Used by: threshold model scoring in task1/model.py
     #
     # Keep each feature aligned by frame index.
-    # TODO: implement
-    raise NotImplementedError
-
+    feature :Dict[str,np.ndarray] = {}
+    # 短时能量
+    eps =1e-8
+    energy = np.sum(frames**2,axis=1)
+    energy = np.log(energy+eps)
+    # 过0率
+    signs = np.sign(frames)
+    signs[signs == 0] = 1
+    zcr = 0.5 * np.mean(np.abs(np.diff(signs,axis=1)),axis=1) # diff 查分 [-1,1,1,1,-1,1,1,-1] -> [2,0,0,-2,2,0,-2]
+    feature[energy] = energy
+    feature[zcr] =zcr    
+    return feature
+    
 
 def stack_features(feature_dict: Dict[str, np.ndarray]) -> np.ndarray:
     """Stack multiple feature streams into [num_frames, feat_dim].
@@ -94,4 +119,20 @@ def stack_features(feature_dict: Dict[str, np.ndarray]) -> np.ndarray:
     # - choose a fixed feature order
     # - ensure all streams have identical num_frames
     # TODO: implement
-    raise NotImplementedError
+    order = ['energy','zcr']
+    feature = np.array(np.ndarray(feature_dict[o],dtype=np.float32) for o in order)
+    feature = np.stack(feature,axis=1) # [[1,2,3],[2,3,4]]
+    return feature
+
+# a= np.array([1,2,3])
+# b= np.array([2,3,4])
+# c = [a,b]
+# c = np.array([[1,1],[2,2]])
+# c = c.reshape(-1)
+# print(c)
+# c = np.stack(c,axis=0)
+# print(c)
+# c = np.stack(c,axis=1)
+# print(c)
+    
+
