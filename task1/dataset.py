@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Tuple
-
+import librosa
 import numpy as np
 
 """
@@ -80,9 +80,8 @@ def list_wav_files(split_wav_dir: Path | str) -> List[Path]:
         raise FileNotFoundError(f"Split directory not found: {split_wav_dir}")
     if not split_wav_dir.is_dir():
         raise NotADirectoryError(f"Not a directory: {split_wav_dir}")
-
     wav_files = [
-        p for p in split_wav_dir.iterdir() if p.is_file() and p.suffix.lower() == ".wav"
+        p for p in split_wav_dir.iterdir() if p.is_file() and p.suffix.lower() == ".wav" # p.suffix 取出后缀
     ]
     return sorted(wav_files, key=lambda p: p.name)
 
@@ -96,7 +95,11 @@ def load_waveform(wav_path: Path, sample_rate: int) -> np.ndarray:
     - Used by: framing + short-time feature extraction
     """
     # TODO: implement
-    raise NotImplementedError
+    # sr=sample_rate: 自动重采样到目标采样率
+    # mono=True: 自动转单通道
+    y ,_ = librosa.load(wav_path,sr= sample_rate,mono=True)
+    y = np.array(y,dtype=np.float32).reshape(-1)
+    return y
 
 
 def align_frame_labels_to_num_frames(labels: List[int], num_frames: int) -> np.ndarray:
@@ -108,7 +111,18 @@ def align_frame_labels_to_num_frames(labels: List[int], num_frames: int) -> np.n
     - Used by: metric computation and model fitting
     """
     # TODO: implement
-    raise NotImplementedError
+    labels_arr = np.array(labels).reshape(-1)
+    len_arr = len(labels_arr)
+    if(len_arr == num_frames):
+        return labels_arr
+    elif(len_arr > num_frames):
+        labels_arr = labels_arr[:num_frames]
+    else:
+        pad_len = num_frames - len_arr
+        labels_arr = np.pad(labels_arr,(0,pad_len),'constant',constant_values=0)
+    return labels_arr
+        
+    
 
 
 def split_wav_and_label(
@@ -123,4 +137,13 @@ def split_wav_and_label(
     - Used by: train/dev loops
     """
     # TODO: implement
-    raise NotImplementedError
+    pairs = []
+    for path in wav_files:
+        utt_id = path.stem # stem 去掉后缀
+        if utt_id in label_dict:
+            label = label_dict[utt_id]
+            pairs.append(path,label)
+    return pairs
+        
+
+        

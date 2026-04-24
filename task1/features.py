@@ -1,12 +1,12 @@
 from typing import Dict
-
+import math
 import numpy as np
-
+from dataset import load_waveform
+from config import FrameConfig,PathConfig
 """
 Task1 feature flow:
 waveform -> framing -> windowing -> per-frame features -> stacked features.
 """
-
 
 def framing(
     waveform: np.ndarray,
@@ -22,9 +22,34 @@ def framing(
     - Used by: all Task1 feature extraction
     """
     # Keep frame parameters consistent with label conversion.
-    # TODO: implement
-    raise NotImplementedError
+    waveform = np.asarray(waveform, dtype=np.float32).reshape(-1)
+    wave_len = waveform.shape[0] #原始音频的点数
+    frame_length = int(round(sample_rate * frame_size)) #每一帧的采样点数
+    hop_length = int(round(sample_rate * frame_shift)) #每两帧之间间隔的点数
+    if wave_len<frame_length:
+        num_frames = 1
+    else:
+        num_frames = 1+ math.ceil((wave_len - frame_length)/hop_length)
+    pad_len = (num_frames-1)*hop_length + frame_length - wave_len # 填补最后一段不足 一帧长度的部分
+    waveform = np.pad(waveform,(0,pad_len),'constant',constant_values=0.0)
+    starts = np.arange(num_frames) * hop_length #用矩阵形式来提取 [num_frames, frame_length].
+    offset = np.arange(frame_length).reshape(-1)
+    indices = starts[:,None] + offset
+    data = waveform[indices]
+    return data
 
+# d = np.array([1,3,4,5,6])
+# a = np.array([0,1,2])
+# b = np.array([0,1,2])
+# b = b.reshape(-1)
+# print(b,b.shape)
+# b = b[:,None]
+# print(b,b.shape)
+# c = a+b
+# print(c)
+# print(d[c])
+# # b = b[None,:]
+# # print(b,b.shape)
 
 def apply_window(frames: np.ndarray, window: str = "hamming") -> np.ndarray:
     """Apply analysis window to each frame.

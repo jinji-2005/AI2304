@@ -70,3 +70,36 @@
 - [ ] 对极短语音段和长静音段做边界检查
 - [ ] 复现实验：同一命令可一键重跑得到同指标
 - [ ] README 说明运行环境、依赖与命令
+
+## 6. 知识补充部分
+
+### 6.1 waveform 与 sample_rate 的关系
+- `waveform` 是一维采样序列，`shape=(N,)` 表示有 `N` 个采样点。
+- `sample_rate=16000` 表示每秒 16000 个采样点。
+- 时长计算：
+  - `duration_seconds = num_samples / sample_rate`
+- 示例：
+  - 若 `waveform.shape=(48000,)`，采样率 16kHz，则时长 `48000/16000=3` 秒。
+
+### 6.2 frame_size / frame_shift 与 frame_length / hop_length
+- `frame_size`：每帧覆盖的时间长度（秒），例如 `0.032`（32ms）。
+- `frame_shift`：相邻两帧起点间隔（秒），例如 `0.008`（8ms）。
+- 换算到采样点：
+  - `frame_length = frame_size * sample_rate`
+  - `hop_length = frame_shift * sample_rate`
+- 示例（16kHz）：
+  - `frame_length = 0.032 * 16000 = 512`
+  - `hop_length = 0.008 * 16000 = 128`
+
+### 6.3 分帧直觉
+- `frame_length` 决定每次“看多长时间窗口”。
+- `hop_length` 决定多久输出一次新帧（时间分辨率）。
+- 当 `hop_length < frame_length` 时帧会重叠。
+- 示例：
+  - 重叠长度 `= 512 - 128 = 384` 点（75% 重叠）。
+
+### 6.4 为什么这些参数重要
+- 标签是按帧对齐的，特征也是按帧提取的，二者必须使用同一组帧参数。
+- 若参数不一致，会导致：
+  - 标签长度与特征帧数不匹配
+  - Acc/AUC/EER 评估结果失真

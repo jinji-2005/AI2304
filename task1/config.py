@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 from pathlib import Path
 
 
@@ -12,10 +12,15 @@ class FrameConfig:
 @dataclass
 class PathConfig:
     data_root: Path
-    wav_root: Path
-    train_label_path: Path
-    dev_label_path: Path
+    wav_root: Path = field(init=False)
+    train_label_path: Path = field(init=False)
+    dev_label_path: Path = field(init=False)
 
+    def __post_init__(self) -> None:
+        self.data_root = Path(self.data_root)
+        self.wav_root = self.data_root / "wavs"
+        self.train_label_path = self.data_root / "data" / "train_label.txt"
+        self.dev_label_path = self.data_root / "data" / "dev_label.txt"
 
 @dataclass
 class ThresholdConfig:
