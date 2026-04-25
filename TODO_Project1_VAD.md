@@ -74,6 +74,7 @@
 ## 6. 知识补充部分
 
 ### 6.1 waveform 与 sample_rate 的关系
+
 - `waveform` 是一维采样序列，`shape=(N,)` 表示有 `N` 个采样点。
 - `sample_rate=16000` 表示每秒 16000 个采样点。
 - 时长计算：
@@ -82,6 +83,7 @@
   - 若 `waveform.shape=(48000,)`，采样率 16kHz，则时长 `48000/16000=3` 秒。
 
 ### 6.2 frame_size / frame_shift 与 frame_length / hop_length
+
 - `frame_size`：每帧覆盖的时间长度（秒），例如 `0.032`（32ms）。
 - `frame_shift`：相邻两帧起点间隔（秒），例如 `0.008`（8ms）。
 - 换算到采样点：
@@ -92,6 +94,7 @@
   - `hop_length = 0.008 * 16000 = 128`
 
 ### 6.3 分帧直觉
+
 - `frame_length` 决定每次“看多长时间窗口”。
 - `hop_length` 决定多久输出一次新帧（时间分辨率）。
 - 当 `hop_length < frame_length` 时帧会重叠。
@@ -99,12 +102,14 @@
   - 重叠长度 `= 512 - 128 = 384` 点（75% 重叠）。
 
 ### 6.4 为什么这些参数重要
+
 - 标签是按帧对齐的，特征也是按帧提取的，二者必须使用同一组帧参数。
 - 若参数不一致，会导致：
   - 标签长度与特征帧数不匹配
   - Acc/AUC/EER 评估结果失真
 
 ### 6.5 窗函数（Window Function）是什么，为什么要加
+
 - 定义：
   - 分帧后，每一帧会乘一个长度相同的权重序列（窗口），这个权重序列就叫窗函数。
   - 常见窗口：Hamming、Hann、Rect（全1，不加窗）。
@@ -122,12 +127,14 @@
   - Task1 推荐 `Hamming` 作为默认窗口；
   - 若不加窗相当于 `Rect`，一般效果会更差。
 - 简单代码示例：
+
 ```python
 win = np.hamming(frame_length).astype(np.float32)  # shape: (frame_length,)
 frames_windowed = frames * win[None, :]            # 对每一帧逐点乘窗
 ```
 
 ### 6.6 对数能量（Log-Energy）与过零率（ZCR）
+
 - 对数能量是什么：
   - 先计算每一帧的短时能量：`E = sum(frame^2)`。
   - 再取对数：`logE = log(E + eps)`（`eps` 防止 `log(0)`）。
@@ -140,6 +147,7 @@ frames_windowed = frames * win[None, :]            # 对每一帧逐点乘窗
   - `ZCR` 常作为辅助特征（帮助区分噪声、清音和部分边界情况）。
   - 二者结合通常比只用单一特征更稳。
 - 常见代码写法：
+
 ```python
 eps = 1e-8
 energy = np.sum(frames ** 2, axis=1)               # 每帧能量
@@ -149,3 +157,24 @@ signs = np.sign(frames)
 signs[signs == 0] = 1
 zcr = 0.5 * np.mean(np.abs(np.diff(signs, axis=1)), axis=1)
 ```
+
+### 6.7 AUC 与 EER 指标定义
+
+- ROC 曲线（Receiver Operating Characteristic）：
+  - 在不同阈值下，绘制 `(FPR, TPR)` 曲线。
+  - `TPR`（召回率）= 真正例率；`FPR` = 假正例率。
+- AUC（Area Under ROC Curve）：
+  - 定义：ROC 曲线下的面积。
+  - 取值范围通常在 `[0,1]`，越大越好。
+  - 直觉：随机抽一个语音帧和一个非语音帧，模型把语音帧打分更高的概率。
+- EER（Equal Error Rate）：
+  - 定义：在某个阈值下，`FPR` 与 `FNR`（漏检率）相等时的错误率。
+  - 取值通常在 `[0,1]`，越小越好。
+  - 直觉：把“误报”和“漏报”权重看成一样时，系统的平衡错误水平。
+- 在本项目中的使用方式：
+  - AUC/EER 应使用“全开发集所有帧拼接后的连续分数”统一计算；
+  - 不应对每条音频分别算后再简单平均。
+- 与阈值关系：
+  - AUC反映整体排序能力（跨所有阈值）；
+  - EER反映在某个平衡阈值下的性能；
+  - Acc 依赖你选定的单一阈值，AUC/EER 更全面。

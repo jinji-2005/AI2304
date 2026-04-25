@@ -62,7 +62,7 @@ def apply_window(frames: np.ndarray, window: str = "hamming") -> np.ndarray:
     """
     # Default recommendation: Hamming window for robust short-time analysis.
     # TODO: implement
-    str = str.lower()
+    str = window.lower()
     if str=="hamming":
         frame_len = frames.shape[1]
         window = np.hamming(frame_len) # 生成一段权重函数
@@ -98,15 +98,15 @@ def extract_short_time_features(frames: np.ndarray) -> Dict[str, np.ndarray]:
     eps =1e-8
     energy = np.sum(frames**2,axis=1)
     energy = np.log(energy+eps)
-    mean = np.mean(energy,axis=1)
-    std = np.std(energy,axis=1) + eps
+    mean = np.mean(energy)
+    std = np.std(energy) + eps
     energy = (energy - mean)/std # 进行归一化处理
-    feature[energy] = energy
+    feature['energy'] = energy
     # 过0率
     signs = np.sign(frames)
     signs[signs == 0] = 1
     zcr = 0.5 * np.mean(np.abs(np.diff(signs,axis=1)),axis=1) # diff 查分 [-1,1,1,1,-1,1,1,-1] -> [2,0,0,-2,2,0,-2]
-    feature[zcr] =zcr    
+    feature['zcr'] =zcr    
     return feature
     
 
@@ -121,9 +121,17 @@ def stack_features(feature_dict: Dict[str, np.ndarray]) -> np.ndarray:
     # Recommendation:
     # - choose a fixed feature order
     # - ensure all streams have identical num_frames
-    # TODO: implement
+    # feature_dict = {
+    # "energy": np.array([1.0, 2.0, 3.0]),
+    # "zcr":    np.array([0.2, 0.1, 0.4]),}
+    # X = np.array([
+    # [1.0, 0.2],
+    # [2.0, 0.1],
+    # [3.0, 0.4],
+    # ], dtype=np.float32)   # shape=(3,2)
+
     order = ['energy','zcr']
-    feature = np.array(np.ndarray(feature_dict[o],dtype=np.float32) for o in order)
+    feature = [np.asarray(feature_dict[o],dtype=np.float32) for o in order]
     feature = np.stack(feature,axis=1) # [[1,2,3],[2,3,4]]
     return feature
 
@@ -138,7 +146,7 @@ def stack_features(feature_dict: Dict[str, np.ndarray]) -> np.ndarray:
 # c = np.stack(c,axis=1)
 # print(c)
 
-c = np.array([[1,1],[2,2]])
-print(np.mean(c,axis=0))
-print(np.mean(c,axis=1))
+# c = np.array([[1,1],[2,2]])
+# print(np.mean(c,axis=0))
+# print(np.mean(c,axis=1))
 

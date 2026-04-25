@@ -30,12 +30,12 @@ class VADclassifier:
         # TODO: implement (or keep as no-op if you use manual thresholds)
         if(features.shape[0]!=labels.shape[0]):
             raise ValueError("特征和标签维度不对齐")
-        if(features.shape[0]!=2):
+        if(features.shape[1]!=2):
             raise ValueError("特征不是2维")
         
-        score = features[0] *0.8 + (1-features[1]) * 0.2
+        score = features[:,0] *1 + (1-features[:,1]) * 0
         score = np.asarray(score)
-        thres = [t for t in np.arange(0.05,1,0.05)]
+        thres = [t for t in np.arange(-0.6,-0.4,0.005)]
         best_thre = 0.05
         best_acc = 0
         for thre in thres:
@@ -47,8 +47,8 @@ class VADclassifier:
         
         margin = 0.05 * (np.ptp(score)) + 1e-6
         self.params.threshold = best_thre
-        self.params.high_threshold = best_thre + 0.5* margin
-        self.params.low_threshold = best_thre - 0.5* margin
+        self.params.high_threshold = best_thre + 0.1* margin
+        self.params.low_threshold = best_thre - 0.1* margin
 
     def score_frames(self, features: np.ndarray) -> np.ndarray:
         """Return frame-level speech scores/probabilities in [0, 1].
@@ -63,12 +63,6 @@ class VADclassifier:
         # Score can come from simple linear combination of handcrafted features.
         score = features[:,0] *0.8 + (1-features[:,1]) * 0.2
         score = np.asarray(score)
-        s_min, s_max = float(score.min()), float(score.max())
-        if s_max > s_min:
-            score = (score - s_min) / (s_max - s_min)
-        else:
-            score = np.zeros_like(score, dtype=np.float32)
-
         return score.astype(np.float32)
                 
             
@@ -86,7 +80,7 @@ class VADclassifier:
         # Usually: scores = score_frames(features) -> apply threshold rule.
         # TODO: implement
         score = self.score_frames(features=features)
-        score = np.ndarray(score)
+        score = np.asarray(score)
         labels = []
         state = 0
         for sco in score:
@@ -105,7 +99,7 @@ class VADclassifier:
 # a =[1,23]
 # print(type(np.array(a)))
 
-# print(np.arange(0.05,0.95,0.05))
+# print(np.arange(-1,-0.5,0.005))
 
 # a = np.array([[1,1,1],[2,2,2]])
 # print(a[0])

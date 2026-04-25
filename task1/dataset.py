@@ -142,7 +142,7 @@ def split_wav_and_label(
         utt_id = path.stem # stem 去掉后缀
         if utt_id in label_dict:
             label = label_dict[utt_id]
-            pairs.append(path,label)
+            pairs.append((path,label))
     return pairs
         
 

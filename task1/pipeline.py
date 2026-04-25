@@ -2,12 +2,19 @@ from functools import lru_cache
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Callable, Dict, Tuple
-
+import librosa
 import numpy as np
+from tqdm.auto import tqdm
 
-
-class DevResult(Dict[str, float]):
-    """Container for development metrics."""
+from config import FrameConfig, PathConfig
+from dataset import (
+    list_wav_files,
+    read_label_from_file,
+    load_waveform,
+    align_frame_labels_to_num_frames,
+)
+from features import framing, apply_window, extract_short_time_features, stack_features
+from model import ThresholdParams, VADclassifier
 
 
 def _evaluate_py_path(project_root: Path) -> Path:
@@ -56,7 +63,7 @@ def compute_auc_eer(
     return float(auc), float(eer)
 
 
-def run_dev_pipeline(project_root: Path) -> DevResult:
+def run_dev_pipeline(project_root: Path) -> Dict:
     """Run Task1 development experiment and return metric dict.
 
     Suggested metric keys: acc, auc, eer
@@ -72,7 +79,80 @@ def run_dev_pipeline(project_root: Path) -> DevResult:
     # 5) Compute acc + official auc/eer and return as dict:
     #    auc, eer = compute_auc_eer(pred_scores, labels, project_root)
     # TODO: implement
-    raise NotImplementedError
+    data_root = (
+        Path(project_root)
+        / "voice-activity-detection-sjtu-spring-2024"
+        / "vad"
+    )
+    path_cfg = PathConfig(data_root=data_root)
+    frame_cfg = FrameConfig()
+    model = VADclassifier(ThresholdParams())
+    def build_xy(split: str, label_path: Path):
+        wav_files = list_wav_files(path_cfg.wav_root / split)
+        label_dict = read_label_from_file(
+            label_path, 
+            frame_size=frame_cfg.frame_size,
+            frame_shift=frame_cfg.frame_shift,
+        )
+
+        x_list, y_list = [], []
+        iterator = tqdm(
+            wav_files,
+            total=len(wav_files),
+            desc=f"[{split}] feature extraction",
+            unit="utt",
+        )
+        for wav_path in iterator:
+            utt_id = wav_path.stem
+            if utt_id not in label_dict:
+                continue
+
+            waveform = load_waveform(wav_path, frame_cfg.sample_rate)
+            frames = framing(
+                waveform,
+                sample_rate=frame_cfg.sample_rate,
+                frame_size=frame_cfg.frame_size,
+                frame_shift=frame_cfg.frame_shift,
+            )
+            frames = apply_window(frames, window="hamming")
+
+            feat_dict = extract_short_time_features(frames)
+            x = stack_features(feat_dict)  # (T, D)
+
+            y = align_frame_labels_to_num_frames(label_dict[utt_id], x.shape[0])  # (T,)
+
+            x_list.append(x)
+            y_list.append(y)
+            iterator.set_postfix({"kept": len(x_list)})
+        if not x_list:
+            raise RuntimeError(f"No matched labeled samples in split={split}")
+
+        x_all = np.concatenate(x_list, axis=0)
+        y_all = np.concatenate(y_list, axis=0)
+        return x_all, y_all
+    x_all,y_all = build_xy('train',path_cfg.train_label_path)
+    model.fit(x_all,y_all)
+    
+    print(model.params.threshold)
+    print(model.params.high_threshold)
+    print(model.params.low_threshold)
+    
+    # 开发集评估
+
+    x_dev , y_dev = build_xy('dev',path_cfg.dev_label_path)
+    scores_dev = model.score_frames(x_dev)
+    preds_dev = model.predict_frames(x_dev)
+    acc = compute_acc(preds_dev,y_dev)
+    auc , eer = compute_auc_eer(scores_dev,y_dev,Path(project_root))
+    
+    out = {}
+    out['acc'] = acc
+    out['auc'] = auc
+    out['eer'] = eer
+    return out
+    
+    
+    
 
 
 def run_test_pipeline(project_root: Path, output_path: Path) -> None:

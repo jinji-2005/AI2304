@@ -34,3 +34,8 @@ class Task1Config:
     frame: FrameConfig
     paths: PathConfig
     threshold: ThresholdConfig
+
+# Task1Config 可以用这个加载 config 么
+# split_wav_and_label 是不是没用
+# auc 和 eer 都是什么
+# 
