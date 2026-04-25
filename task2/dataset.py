@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
+import librosa
 import numpy as np
 
 """
@@ -86,8 +87,8 @@ def load_waveform(wav_path: Path, sample_rate: int) -> np.ndarray:
     - Input: single wav file
     - Output: waveform used by spectral feature extractor
     """
-    # TODO: implement
-    raise NotImplementedError
+    y, _ = librosa.load(wav_path, sr=sample_rate, mono=True)
+    return np.asarray(y, dtype=np.float32).reshape(-1)
 
 
 def align_frame_labels_to_num_frames(labels: List[int], num_frames: int) -> np.ndarray:
@@ -97,19 +98,11 @@ def align_frame_labels_to_num_frames(labels: List[int], num_frames: int) -> np.n
     - Input: frame labels + actual feature frame count
     - Output: fixed-length frame labels aligned to feature matrix
     """
-    # TODO: implement
-    raise NotImplementedError
-
-
-def split_wav_and_label(
-    wav_files: List[Path],
-    label_dict: Dict[str, List[int]],
-) -> List[Tuple[Path, List[int]]]:
-    """Return matched pairs (wav_path, frame_labels) for supervised splits.
-
-    Data usage:
-    - Input: wav list + label dict (frame labels)
-    - Output: matched training/evaluation pairs by utt_id
-    """
-    # TODO: implement
-    raise NotImplementedError
+    labels_arr = np.asarray(labels, dtype=np.int64).reshape(-1)
+    len_arr = len(labels_arr)
+    if len_arr == num_frames:
+        return labels_arr
+    if len_arr > num_frames:
+        return labels_arr[:num_frames]
+    pad_len = num_frames - len_arr
+    return np.pad(labels_arr, (0, pad_len), mode="constant", constant_values=0)

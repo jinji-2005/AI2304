@@ -4,6 +4,17 @@ from pathlib import Path
 from typing import Callable, Dict, Tuple
 
 import numpy as np
+from tqdm.auto import tqdm
+
+from config import FeatureConfig, FrameConfig, ModelConfig, PathConfig
+from dataset import (
+    align_frame_labels_to_num_frames,
+    list_wav_files,
+    load_waveform,
+    read_label_from_file,
+)
+from features import extract_spectral_features
+from model import StatisticalModelParams, StatisticalVAD
 
 
 class DevResult(Dict[str, float]):
@@ -54,6 +65,72 @@ def compute_auc_eer(
     get_metrics = _load_official_get_metrics(str(evaluate_py))
     auc, eer = get_metrics(pred_arr.tolist(), label_arr.tolist())
     return float(auc), float(eer)
+
+
+def build_runtime_components(project_root: Path) -> Tuple[PathConfig, FrameConfig, FeatureConfig, StatisticalVAD]:
+    """Build common configs/model used by Task2 train/dev/test pipeline."""
+    data_root = (
+        Path(project_root)
+        / "voice-activity-detection-sjtu-spring-2024"
+        / "vad"
+    )
+    path_cfg = PathConfig(data_root=data_root)
+    frame_cfg = FrameConfig()
+    feature_cfg = FeatureConfig()
+    model_cfg = ModelConfig()
+    model = StatisticalVAD(StatisticalModelParams(model_type=model_cfg.model_type))
+    return path_cfg, frame_cfg, feature_cfg, model
+
+
+def build_xy(
+    split: str,
+    label_path: Path,
+    path_cfg: PathConfig,
+    frame_cfg: FrameConfig,
+    feature_cfg: FeatureConfig,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Build concatenated frame-level features/labels for one supervised split."""
+    wav_files = list_wav_files(path_cfg.wav_root / split)
+    label_dict = read_label_from_file(
+        label_path,
+        frame_size=frame_cfg.frame_size,
+        frame_shift=frame_cfg.frame_shift,
+    )
+
+    x_list = []
+    y_list = []
+    iterator = tqdm(
+        wav_files,
+        total=len(wav_files),
+        desc=f"[{split}] feature extraction",
+        unit="utt",
+    )
+    for wav_path in iterator:
+        utt_id = wav_path.stem
+        if utt_id not in label_dict:
+            continue
+
+        waveform = load_waveform(wav_path, frame_cfg.sample_rate)
+        x = extract_spectral_features(
+            waveform=waveform,
+            sample_rate=frame_cfg.sample_rate,
+            frame_size=frame_cfg.frame_size,
+            frame_shift=frame_cfg.frame_shift,
+            feature_type=feature_cfg.feature_type,
+            feature_dim=feature_cfg.feature_dim,
+        )
+        y = align_frame_labels_to_num_frames(label_dict[utt_id], x.shape[0])
+
+        x_list.append(x)
+        y_list.append(y)
+        iterator.set_postfix({"kept": len(x_list)})
+
+    if not x_list:
+        raise RuntimeError(f"No matched labeled samples in split={split}")
+
+    x_all = np.concatenate(x_list, axis=0)
+    y_all = np.concatenate(y_list, axis=0)
+    return x_all, y_all
 
 
 def run_dev_pipeline(project_root: Path) -> DevResult:

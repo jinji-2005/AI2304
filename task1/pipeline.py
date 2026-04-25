@@ -15,6 +15,7 @@ from dataset import (
 )
 from features import framing, apply_window, extract_short_time_features, stack_features
 from model import ThresholdParams, VADclassifier
+from postprocess import frame_prediction_to_label_line,smooth_predictions
 
 
 def _evaluate_py_path(project_root: Path) -> Path:
@@ -62,6 +63,57 @@ def compute_auc_eer(
     auc, eer = get_metrics(pred_arr.tolist(), label_arr.tolist())
     return float(auc), float(eer)
 
+def build_xy(split: str, label_path: Path , project_root: Path): # split = 'train' 'dev' 'test'
+    data_root = (
+        Path(project_root)
+        / "voice-activity-detection-sjtu-spring-2024"
+        / "vad"
+    )
+    path_cfg = PathConfig(data_root=data_root)
+    frame_cfg = FrameConfig()
+    wav_files = list_wav_files(path_cfg.wav_root / split)
+    label_dict = read_label_from_file(
+        label_path, 
+        frame_size=frame_cfg.frame_size,
+        frame_shift=frame_cfg.frame_shift,
+    )
+
+    x_list, y_list = [], []
+    iterator = tqdm(
+        wav_files,
+        total=len(wav_files),
+        desc=f"[{split}] feature extraction",
+        unit="utt",
+    )
+    for wav_path in iterator:
+        utt_id = wav_path.stem
+        if utt_id not in label_dict:
+            continue
+
+        waveform = load_waveform(wav_path, frame_cfg.sample_rate)
+        frames = framing(
+            waveform,
+            sample_rate=frame_cfg.sample_rate,
+            frame_size=frame_cfg.frame_size,
+            frame_shift=frame_cfg.frame_shift,
+        )
+        frames = apply_window(frames, window="hamming")
+
+        feat_dict = extract_short_time_features(frames)
+        x = stack_features(feat_dict)  # (T, D)
+
+        y = align_frame_labels_to_num_frames(label_dict[utt_id], x.shape[0])  # (T,)
+
+        x_list.append(x)
+        y_list.append(y)
+        iterator.set_postfix({"kept": len(x_list)})
+    if not x_list:
+        raise RuntimeError(f"No matched labeled samples in split={split}")
+
+    x_all = np.concatenate(x_list, axis=0)
+    y_all = np.concatenate(y_list, axis=0)
+    return x_all, y_all
+
 
 def run_dev_pipeline(project_root: Path) -> Dict:
     """Run Task1 development experiment and return metric dict.
@@ -85,66 +137,29 @@ def run_dev_pipeline(project_root: Path) -> Dict:
         / "vad"
     )
     path_cfg = PathConfig(data_root=data_root)
-    frame_cfg = FrameConfig()
     model = VADclassifier(ThresholdParams())
-    def build_xy(split: str, label_path: Path):
-        wav_files = list_wav_files(path_cfg.wav_root / split)
-        label_dict = read_label_from_file(
-            label_path, 
-            frame_size=frame_cfg.frame_size,
-            frame_shift=frame_cfg.frame_shift,
-        )
 
-        x_list, y_list = [], []
-        iterator = tqdm(
-            wav_files,
-            total=len(wav_files),
-            desc=f"[{split}] feature extraction",
-            unit="utt",
-        )
-        for wav_path in iterator:
-            utt_id = wav_path.stem
-            if utt_id not in label_dict:
-                continue
+    x_all,y_all = build_xy('train',path_cfg.train_label_path,project_root)
+    #x_all,y_all = build_xy('dev',path_cfg.dev_label_path,project_root)
 
-            waveform = load_waveform(wav_path, frame_cfg.sample_rate)
-            frames = framing(
-                waveform,
-                sample_rate=frame_cfg.sample_rate,
-                frame_size=frame_cfg.frame_size,
-                frame_shift=frame_cfg.frame_shift,
-            )
-            frames = apply_window(frames, window="hamming")
-
-            feat_dict = extract_short_time_features(frames)
-            x = stack_features(feat_dict)  # (T, D)
-
-            y = align_frame_labels_to_num_frames(label_dict[utt_id], x.shape[0])  # (T,)
-
-            x_list.append(x)
-            y_list.append(y)
-            iterator.set_postfix({"kept": len(x_list)})
-        if not x_list:
-            raise RuntimeError(f"No matched labeled samples in split={split}")
-
-        x_all = np.concatenate(x_list, axis=0)
-        y_all = np.concatenate(y_list, axis=0)
-        return x_all, y_all
-    x_all,y_all = build_xy('train',path_cfg.train_label_path)
-    print(np.mean(x_all))
-    print(np.min(x_all))
-    print(np.max(x_all))
-    #model.fit(x_all,y_all)
+    # print(np.mean(x_all))
+    # print(np.min(x_all))
+    # print(np.max(x_all))
+    model.fit(x_all,y_all)
     
     #print(model.params.threshold)
+    ThresholdParams.high_threshold = model.params.high_threshold
+    ThresholdParams.low_threshold = model.params.low_threshold
+    ThresholdParams.threshold = (model.params.high_threshold +model.params.low_threshold)/2
     print(model.params.high_threshold)
     print(model.params.low_threshold)
     
     # 开发集评估
 
-    x_dev , y_dev = build_xy('dev',path_cfg.dev_label_path)
+    x_dev , y_dev = build_xy('dev',path_cfg.dev_label_path,project_root)
     scores_dev = model.score_frames(x_dev)
     preds_dev = model.predict_frames(x_dev)
+    preds_dev = smooth_predictions(preds_dev,kernel_size=3)
     acc = compute_acc(preds_dev,y_dev)
     auc , eer = compute_auc_eer(scores_dev,y_dev,Path(project_root))
     
@@ -170,7 +185,47 @@ def run_test_pipeline(project_root: Path, output_path: Path) -> None:
     #    utt_id <space> start,end start,end ...
     #    (if empty prediction, usually keep only utt_id)
     # TODO: implement
-    raise NotImplementedError
+    data_root = (
+    Path(project_root)
+    / "voice-activity-detection-sjtu-spring-2024"
+    / "vad")
+    path_cfg = PathConfig(data_root=data_root)
+    model = VADclassifier(ThresholdParams())
+    frame_cfg = FrameConfig()
+    # 开发集求得阈值
+    x_dev,y_dev = build_xy('dev',path_cfg.dev_label_path,project_root=project_root)
+    model.fit(x_dev,y_dev)
+    
+    # 测试测试集
+    wave_files = list_wav_files(path_cfg.wav_root / 'test')
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with output_path.open("w", encoding="utf-8") as f:
+        for wav_path in wave_files:
+            utt_id = wav_path.stem
+
+            waveform = load_waveform(wav_path, frame_cfg.sample_rate)
+            frames = framing(waveform, frame_cfg.sample_rate, frame_cfg.frame_size, frame_cfg.frame_shift)
+            frames = apply_window(frames, window="hamming")
+            feat_dict = extract_short_time_features(frames)
+            x_test = stack_features(feat_dict)
+
+            pred = model.predict_frames(x_test)  # shape (T,), 0/1 from dual-threshold decode
+            seg_str = frame_prediction_to_label_line(
+                pred,
+                frame_cfg.frame_size,
+                frame_cfg.frame_shift,
+            )
+
+            line = f"{utt_id} {seg_str}".rstrip()  # seg_str为空时只保留utt_id
+            f.write(line + "\n")
+        
+    
+
+        
+    
+    
 
 
 def compute_acc(pred_binary: np.ndarray, label_binary: np.ndarray) -> float:

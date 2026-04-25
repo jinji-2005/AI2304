@@ -80,7 +80,7 @@ class VADclassifier:
           - threshold decoding in predict_frames/postprocess
         """
         # Score can come from simple linear combination of handcrafted features.
-        score = features[:,0] *1 + (1-features[:,1]) * 0
+        score = features[:,0] * 0.8 + (1-features[:,1]) * 0.2
         score = np.asarray(score)
         return score.astype(np.float32)
                 

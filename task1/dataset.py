@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import librosa
 import numpy as np
 
@@ -42,6 +42,62 @@ def parse_vad_label(
             frames.append(1)
             frame_n += 1
     return frames
+
+def prediction_to_vad_label(
+    prediction,
+    frame_size: float = 0.032,
+    frame_shift: float = 0.008,
+    threshold: float = 0.5,
+):
+    """Convert model prediction to VAD labels.
+
+    Args:
+        prediction (List[float]): predicted speech activity of each **frame** in one sample
+            e.g. [0.01, 0.03, 0.48, 0.66, 0.89, 0.87, ..., 0.72, 0.55, 0.20, 0.18, 0.07]
+        frame_size (float): frame size (in seconds) that is used when
+                            extarcting spectral features
+        frame_shift (float): frame shift / hop length (in seconds) that
+                            is used when extarcting spectral features
+        threshold (float): prediction values that are higher than `threshold` are set to 1,
+                            and those lower than or equal to `threshold` are set to 0
+    Returns:
+        vad_label (str): converted VAD label
+            e.g. "0.31,2.56 2.6,3.89 4.62,7.99 8.85,11.06"
+
+    NOTE: Each frame is converted to the timestamp according to its center time point.
+    Thus the converted labels may not exactly coincide with the original VAD label, depending
+    on the specified `frame_size` and `frame_shift`.
+    See the following exmaple for more detailed explanation.
+
+    Examples:
+        >>> label = parse_vad_label("0.31,0.52 0.75,0.92")
+        >>> prediction_to_vad_label(label)
+        '0.31,0.53 0.75,0.92'
+    """
+    frame2time = lambda n: n * frame_shift + frame_size / 2
+    speech_frames = []
+    prev_state = False
+    start, end = 0, 0
+    end_prediction = len(prediction) - 1
+    for i, pred in enumerate(prediction):
+        state = pred > threshold
+        if not prev_state and state:
+            # 0 -> 1
+            start = i
+        elif not state and prev_state:
+            # 1 -> 0
+            end = i
+            speech_frames.append(
+                "{:.2f},{:.2f}".format(frame2time(start), frame2time(end))
+            )
+        elif i == end_prediction and state:
+            # 1 -> 1 (end)
+            end = i
+            speech_frames.append(
+                "{:.2f},{:.2f}".format(frame2time(start), frame2time(end))
+            )
+        prev_state = state
+    return " ".join(speech_frames)
 
 
 def read_label_from_file(
@@ -121,29 +177,6 @@ def align_frame_labels_to_num_frames(labels: List[int], num_frames: int) -> np.n
         pad_len = num_frames - len_arr
         labels_arr = np.pad(labels_arr,(0,pad_len),'constant',constant_values=0)
     return labels_arr
-        
-    
 
-
-def split_wav_and_label(
-    wav_files: List[Path],
-    label_dict: Dict[str, List[int]],
-) -> List[Tuple[Path, List[int]]]:
-    """Return matched pairs (wav_path, frame_labels) for supervised splits.
-
-    Data usage:
-    - Input: wav file list of one split + label dict (frame labels)
-    - Output: list[(wav_path, frame_labels)] for only matched utt_id
-    - Used by: train/dev loops
-    """
-    # TODO: implement
-    pairs = []
-    for path in wav_files:
-        utt_id = path.stem # stem 去掉后缀
-        if utt_id in label_dict:
-            label = label_dict[utt_id]
-            pairs.append((path,label))
-    return pairs
-        
-
-        
+print(Path(__file__).resolve().parent)
+print(Path(__file__).parent)
