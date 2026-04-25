@@ -146,11 +146,12 @@ def run_dev_pipeline(project_root: Path) -> Dict:
     # print(np.min(x_all))
     # print(np.max(x_all))
     model.fit(x_all,y_all)
-    
-    #print(model.params.threshold)
-    ThresholdParams.high_threshold = model.params.high_threshold
-    ThresholdParams.low_threshold = model.params.low_threshold
-    ThresholdParams.threshold = (model.params.high_threshold +model.params.low_threshold)/2
+
+    learned_threshold = {
+        "threshold": float(model.params.threshold),
+        "high_threshold": float(model.params.high_threshold),
+        "low_threshold": float(model.params.low_threshold),
+    }
     print(model.params.high_threshold)
     print(model.params.low_threshold)
     
@@ -167,13 +168,14 @@ def run_dev_pipeline(project_root: Path) -> Dict:
     out['acc'] = acc
     out['auc'] = auc
     out['eer'] = eer
+    out['threshold'] = learned_threshold
     return out
     
     
     
 
 
-def run_test_pipeline(project_root: Path, output_path: Path) -> None:
+def run_test_pipeline(project_root: Path, output_path: Path) -> Dict:
     """Run Task1 inference on test set and write test_label.txt."""
     # Data usage plan:
     # 1) Read test wavs from:
@@ -195,6 +197,11 @@ def run_test_pipeline(project_root: Path, output_path: Path) -> None:
     # 开发集求得阈值
     x_dev,y_dev = build_xy('dev',path_cfg.dev_label_path,project_root=project_root)
     model.fit(x_dev,y_dev)
+    learned_threshold = {
+        "threshold": float(model.params.threshold),
+        "high_threshold": float(model.params.high_threshold),
+        "low_threshold": float(model.params.low_threshold),
+    }
     
     # 测试测试集
     wave_files = list_wav_files(path_cfg.wav_root / 'test')
@@ -220,7 +227,10 @@ def run_test_pipeline(project_root: Path, output_path: Path) -> None:
 
             line = f"{utt_id} {seg_str}".rstrip()  # seg_str为空时只保留utt_id
             f.write(line + "\n")
-        
+    return {
+        "output_path": str(output_path),
+        "threshold": learned_threshold,
+    }
     
 
         

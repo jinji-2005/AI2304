@@ -39,16 +39,23 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     t0 = time.time()
+    result = None
     status = "success"
     err_msg = None
     try:
-        run_test_pipeline(args.project_root, args.output)
+        result = run_test_pipeline(args.project_root, args.output)
         print(f"Task1 test labels written to: {args.output}")
     except Exception as exc:
         status = "failed"
         err_msg = f"{type(exc).__name__}: {exc}"
         raise
     finally:
+        threshold_cfg = asdict(ThresholdConfig())
+        if isinstance(result, dict):
+            learned_threshold = result.get("threshold")
+            if isinstance(learned_threshold, dict):
+                threshold_cfg = learned_threshold
+
         log_path = write_experiment_log(
             project_root=args.project_root,
             task="task1",
@@ -58,10 +65,10 @@ def main() -> None:
             duration_sec=time.time() - t0,
             config={
                 "frame": asdict(FrameConfig()),
-                "threshold": asdict(ThresholdConfig()),
+                "threshold": threshold_cfg,
                 "feature": {"name": "short_time", "streams": ["energy", "zcr"]},
             },
-            result={"output_path": str(args.output)},
+            result=result if isinstance(result, dict) else {"output_path": str(args.output)},
             extra={"exp_name": args.exp_name},
             error=err_msg,
         )

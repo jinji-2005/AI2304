@@ -1,4 +1,5 @@
 import numpy as np
+import librosa
 
 
 def extract_spectral_features(
@@ -24,4 +25,4 @@ def extract_spectral_features(
     # - Keep frame_size/frame_shift identical to label conversion.
     # - Feature matrix frame count is the reference length for label alignment.
     # TODO: implement
-    raise NotImplementedError
+

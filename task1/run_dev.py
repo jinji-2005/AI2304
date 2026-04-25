@@ -44,6 +44,12 @@ def main() -> None:
         err_msg = f"{type(exc).__name__}: {exc}"
         raise
     finally:
+        threshold_cfg = asdict(ThresholdConfig())
+        if isinstance(result, dict):
+            learned_threshold = result.get("threshold")
+            if isinstance(learned_threshold, dict):
+                threshold_cfg = learned_threshold
+
         log_path = write_experiment_log(
             project_root=args.project_root,
             task="task1",
@@ -53,7 +59,7 @@ def main() -> None:
             duration_sec=time.time() - t0,
             config={
                 "frame": asdict(FrameConfig()),
-                "threshold": asdict(ThresholdConfig()),
+                "threshold": threshold_cfg,
                 "feature": {"name": "short_time", "streams": ["energy", "zcr"]},
             },
             result=result if isinstance(result, dict) else {},
