@@ -131,9 +131,12 @@ def run_dev_pipeline(project_root: Path) -> Dict:
         y_all = np.concatenate(y_list, axis=0)
         return x_all, y_all
     x_all,y_all = build_xy('train',path_cfg.train_label_path)
-    model.fit(x_all,y_all)
+    print(np.mean(x_all))
+    print(np.min(x_all))
+    print(np.max(x_all))
+    #model.fit(x_all,y_all)
     
-    print(model.params.threshold)
+    #print(model.params.threshold)
     print(model.params.high_threshold)
     print(model.params.low_threshold)
     
