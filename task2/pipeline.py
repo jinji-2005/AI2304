@@ -14,8 +14,8 @@ from dataset import (
     read_label_from_file,
 )
 from features import extract_spectral_features
-from model import StatisticalModelParams, StatisticalVAD
-
+from model import DNNClassifier
+from postprocess import frame_prediction_to_label_line,smooth_predictions
 
 class DevResult(Dict[str, float]):
     """Container for development metrics."""
@@ -67,7 +67,7 @@ def compute_auc_eer(
     return float(auc), float(eer)
 
 
-def build_runtime_components(project_root: Path) -> Tuple[PathConfig, FrameConfig, FeatureConfig, StatisticalVAD]:
+def build_runtime_components(project_root: Path) -> Tuple[PathConfig, FrameConfig, FeatureConfig, DNNClassifier]:
     """Build common configs/model used by Task2 train/dev/test pipeline."""
     data_root = (
         Path(project_root)
@@ -77,8 +77,7 @@ def build_runtime_components(project_root: Path) -> Tuple[PathConfig, FrameConfi
     path_cfg = PathConfig(data_root=data_root)
     frame_cfg = FrameConfig()
     feature_cfg = FeatureConfig()
-    model_cfg = ModelConfig()
-    model = StatisticalVAD(StatisticalModelParams(model_type=model_cfg.model_type))
+    model = DNNClassifier()
     return path_cfg, frame_cfg, feature_cfg, model
 
 
@@ -148,7 +147,29 @@ def run_dev_pipeline(project_root: Path) -> DevResult:
     # 5) Concatenate all dev frames and compute acc + official auc/eer:
     #    auc, eer = compute_auc_eer(pred_scores, labels, project_root)
     # TODO: implement
-    raise NotImplementedError
+    data_root = (
+        Path(project_root)
+        / "voice-activity-detection-sjtu-spring-2024"
+        / "vad"
+    )
+    path_cfg = PathConfig(data_root=data_root)
+    model = DNNClassifier()
+    frame_cfg = FrameConfig()
+    fea_cfg = FeatureConfig()
+    x_all,y_all = build_xy('train',path_cfg.train_label_path,path_cfg,frame_cfg,fea_cfg)
+    model.fit(x_all,y_all)
+    x_dev,y_dev = build_xy('dev',path_cfg.dev_label_path,path_cfg,frame_cfg,fea_cfg)
+    preds_dev = model.predict_frames(x_dev)
+    preds_dev = smooth_predictions(preds_dev,kernel_size=3)
+    scores_dev = model.score_frames(x_dev)
+    acc = compute_acc(preds_dev,y_dev)
+    auc,eer = compute_auc_eer(scores_dev,y_dev,project_root)
+    
+    res = {}
+    res['acc'] = acc
+    res['auc'] = auc
+    res['eer'] = eer
+    return res
 
 
 def run_test_pipeline(project_root: Path, output_path: Path) -> None:
@@ -159,7 +180,45 @@ def run_test_pipeline(project_root: Path, output_path: Path) -> None:
     # 3) Convert each utterance to timestamp segments
     # 4) Write `utt_id <space> start,end ...` per line to output_path
     # TODO: implement
-    raise NotImplementedError
+    data_root = (
+        Path(project_root)
+        / "voice-activity-detection-sjtu-spring-2024"
+        / "vad"
+    )
+    frame_cfg = FrameConfig()
+    path_cfg = PathConfig(data_root=data_root)
+    model = DNNClassifier()
+    fea_cfg = FeatureConfig()
+    x_all,y_all = build_xy('train',path_cfg.train_label_path,path_cfg,frame_cfg,fea_cfg)
+    model.fit(x_all,y_all)
+    wave_files = list_wav_files(path_cfg.wav_root / 'test')
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with output_path.open("w", encoding="utf-8") as f:
+        for wav_path in wave_files:
+            utt_id = wav_path.stem
+
+            waveform = load_waveform(wav_path, frame_cfg.sample_rate)
+            x_test = extract_spectral_features(
+            waveform,
+            frame_cfg.sample_rate,
+            frame_cfg.frame_size,
+            frame_cfg.frame_shift,
+            feature_type='fbank',
+            feature_dim=fea_cfg.feature_dim
+            )
+            
+            pred = model.predict_frames(x_test)  # shape (T,), 0/1 from dual-threshold decode
+            seg_str = frame_prediction_to_label_line(
+                pred,
+                frame_cfg.frame_size,
+                frame_cfg.frame_shift,
+            )
+
+            line = f"{utt_id} {seg_str}".rstrip()  # seg_str为空时只保留utt_id
+            f.write(line + "\n")
+    
 
 
 def compute_acc(pred_binary: np.ndarray, label_binary: np.ndarray) -> float:

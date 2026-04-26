@@ -17,7 +17,7 @@ class FeatureConfig:
 
 @dataclass
 class ModelConfig:
-    model_type: str = "gmm"  # e.g. gmm / dnn
+    model_type: str = "dnn"  # e.g. gmm / dnn
 
 
 @dataclass
