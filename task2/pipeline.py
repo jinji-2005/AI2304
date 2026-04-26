@@ -67,6 +67,46 @@ def compute_auc_eer(
     return float(auc), float(eer)
 
 
+def sweep_best_threshold_by_acc(
+    scores: np.ndarray,
+    labels: np.ndarray,
+    threshold_min: float = 0.1,
+    threshold_max: float = 0.9,
+    threshold_step: float = 0.01,
+    smooth_kernel_size: int = 3,
+) -> Tuple[float, float]:
+    """Sweep thresholds on dev scores and return (best_threshold, best_acc)."""
+    score_arr = np.asarray(scores, dtype=np.float32).reshape(-1)
+    label_arr = np.asarray(labels, dtype=np.int64).reshape(-1)
+
+    thresholds = np.arange(threshold_min, threshold_max + 1e-8, threshold_step, dtype=np.float32)
+    best_threshold = float(thresholds[0])
+    best_acc = -1.0
+
+    iterator = tqdm(
+        thresholds,
+        total=thresholds.size,
+        desc="[dev] threshold sweep",
+        unit="thr",
+    )
+    for threshold in iterator:
+        pred = (score_arr >= float(threshold)).astype(np.int64)
+        pred = smooth_predictions(pred, kernel_size=smooth_kernel_size)
+        acc = compute_acc(pred, label_arr)
+        if acc > best_acc:
+            best_acc = acc
+            best_threshold = float(threshold)
+        iterator.set_postfix(
+            {
+                "thr": f"{float(threshold):.2f}",
+                "best_thr": f"{best_threshold:.2f}",
+                "best_acc": f"{best_acc:.6f}",
+            }
+        )
+
+    return best_threshold, float(best_acc)
+
+
 def build_runtime_components(project_root: Path) -> Tuple[PathConfig, FrameConfig, FeatureConfig, DNNClassifier]:
     """Build common configs/model used by Task2 train/dev/test pipeline."""
     data_root = (
@@ -156,19 +196,33 @@ def run_dev_pipeline(project_root: Path) -> DevResult:
     model = DNNClassifier()
     frame_cfg = FrameConfig()
     fea_cfg = FeatureConfig()
-    x_all,y_all = build_xy('train',path_cfg.train_label_path,path_cfg,frame_cfg,fea_cfg)
-    model.fit(x_all,y_all)
-    x_dev,y_dev = build_xy('dev',path_cfg.dev_label_path,path_cfg,frame_cfg,fea_cfg)
-    preds_dev = model.predict_frames(x_dev)
-    preds_dev = smooth_predictions(preds_dev,kernel_size=3)
+    x_all, y_all = build_xy("train", path_cfg.train_label_path, path_cfg, frame_cfg, fea_cfg)
+    model.fit(x_all, y_all)
+    x_dev, y_dev = build_xy("dev", path_cfg.dev_label_path, path_cfg, frame_cfg, fea_cfg)
+
+    # 1) continuous scores for AUC/EER and threshold sweep
     scores_dev = model.score_frames(x_dev)
-    acc = compute_acc(preds_dev,y_dev)
-    auc,eer = compute_auc_eer(scores_dev,y_dev,project_root)
-    
+
+    # 2) sweep threshold on dev set to maximize frame-level ACC
+    best_threshold, best_acc = sweep_best_threshold_by_acc(
+        scores=scores_dev,
+        labels=y_dev,
+        threshold_min=0.1,
+        threshold_max=0.9,
+        threshold_step=0.01,
+        smooth_kernel_size=3,
+    )
+
+    # 3) use best threshold to build final dev prediction for consistency
+    preds_dev = (scores_dev >= best_threshold).astype(np.int64)
+    preds_dev = smooth_predictions(preds_dev, kernel_size=3)
+    auc, eer = compute_auc_eer(scores_dev, y_dev, project_root)
+
     res = {}
-    res['acc'] = acc
-    res['auc'] = auc
-    res['eer'] = eer
+    res["acc"] = best_acc
+    res["auc"] = auc
+    res["eer"] = eer
+    res["best_threshold"] = float(best_threshold)
     return res
 
 

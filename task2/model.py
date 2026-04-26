@@ -1,9 +1,12 @@
 from sklearn.mixture import GaussianMixture
-from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from scipy.special import expit  # sigmoid
 
 import numpy as np
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm.auto import tqdm
 
 from config import ModelConfig
 
@@ -25,8 +28,12 @@ class DNNClassifier:
         self.gmm_speech: GaussianMixture | None = None
         self.gmm_noise: GaussianMixture | None = None
 
-        # DNN 分类器
-        self.dnn: MLPClassifier | None = None
+        # DNN 分类器（PyTorch）
+        self.dnn: nn.Module | None = None
+        if torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        else:
+            self.device = torch.device("cpu")
 
         # 先验与状态
         self.prior_speech: float = 0.5
@@ -66,14 +73,62 @@ class DNNClassifier:
             self.is_fitted = True
         
         elif model_type == "dnn":
-            self.dnn = MLPClassifier(
-                hidden_layer_sizes=(128, 64),
-                activation="relu",
-                max_iter=100,
-                early_stopping=True,
-                random_state=42,
+            input_dim = x_std.shape[1]
+            self.dnn = nn.Sequential(
+                nn.Linear(input_dim, 128),
+                nn.ReLU(),
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.Linear(64, 1),
             )
-            self.dnn.fit(x_std, y)
+            self.dnn.to(self.device) # 网络参数需要 to device
+
+            x_tensor = torch.from_numpy(x_std).float() # 转换成 torch 向量
+            y_tensor = torch.from_numpy(y.astype(np.float32)).float().unsqueeze(1) # unsqueeze 把单维度向量增加一个维度
+            dataset = TensorDataset(x_tensor, y_tensor)
+
+            batch_size = 1024
+            epochs = 20
+            train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=False)
+
+            # 用类别权重缓解语音/静音不均衡
+            pos_count = float(max(1, np.sum(y == 1)))
+            neg_count = float(max(1, np.sum(y == 0)))
+            pos_weight = torch.tensor([neg_count / pos_count], dtype=torch.float32, device=self.device)
+
+            criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+            optimizer = torch.optim.Adam(self.dnn.parameters(), lr=1e-3)
+
+            epoch_bar = tqdm(range(1, epochs + 1), desc=f"[fit:{self.model_type}] epochs", unit="epoch")
+            for epoch in epoch_bar:
+                self.dnn.train()
+                running_loss = 0.0
+                seen = 0
+
+                batch_bar = tqdm(
+                    train_loader,
+                    desc=f"[fit:{self.model_type}] epoch {epoch}/{epochs}",
+                    unit="batch",
+                    leave=False,
+                )
+                for xb, yb in batch_bar:
+                    xb = xb.to(self.device)
+                    yb = yb.to(self.device)
+
+                    optimizer.zero_grad(set_to_none=True)
+                    logits = self.dnn(xb)
+                    loss = criterion(logits, yb)
+                    loss.backward()
+                    optimizer.step()
+
+                    bs = xb.shape[0]
+                    running_loss += float(loss.item()) * bs
+                    seen += bs
+                    batch_bar.set_postfix({"loss": f"{loss.item():.5f}"})
+
+                epoch_loss = running_loss / max(seen, 1)
+                epoch_bar.set_postfix({"loss": f"{epoch_loss:.5f}", "device": str(self.device)})
+
             self.is_fitted = True
 
 
@@ -95,12 +150,20 @@ class DNNClassifier:
         x_std = self.scaler.transform(x)
         
         if model_type == "gmm":
+            if self.gmm_speech is None or self.gmm_noise is None:
+                raise RuntimeError("GMM models are not initialized. Please call fit() first.")
             ll_s = self.gmm_speech.score_samples(x_std)
             ll_n = self.gmm_noise.score_samples(x_std)
             llr = ll_s - ll_n
             score = expit(llr)
         elif model_type == "dnn":
-            score = self.dnn.predict_proba(x_std)[:, 1]
+            if self.dnn is None:
+                raise RuntimeError("DNN model is not initialized. Please call fit() first.")
+            self.dnn.eval()
+            with torch.no_grad():
+                x_tensor = torch.from_numpy(x_std).float().to(self.device)
+                logits = self.dnn(x_tensor).squeeze(1)
+                score = torch.sigmoid(logits).cpu().numpy()
         
         return np.asarray(score, dtype=np.float32)
 
