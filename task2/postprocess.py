@@ -9,17 +9,29 @@ def smooth_predictions(binary_pred: np.ndarray, kernel_size: int = 5) -> np.ndar
     - Used by: both dev reporting and final test label generation
     """
     # Typical operations: median filter / remove too-short speech islands.
-    pred = np.asarray(binary_pred).reshape(-1).astype(np.int64)
+    pred = np.asarray(binary_pred).reshape(-1)
     if pred.size == 0 or kernel_size <= 1:
+        if np.all((pred == 0) | (pred == 1)):
+            return pred.astype(np.int64, copy=False)
         return pred
     if kernel_size % 2 == 0:
         kernel_size += 1
-    half = kernel_size // 2 # 向下取整 math.ceil 向上取整
+    half = kernel_size // 2
     padded = np.pad(pred, (half, half), mode="edge")
-    out = np.empty_like(pred)
-    for i in range(pred.size):
-        out[i] = int(np.median(padded[i : i + kernel_size]))
-    return out
+
+    # Binary fast path: odd-kernel median equals majority vote.
+    if np.all((pred == 0) | (pred == 1)):
+        votes = np.convolve(
+            padded.astype(np.int32, copy=False),
+            np.ones(kernel_size, dtype=np.int32),
+            mode="valid",
+        )
+        return (votes >= (kernel_size // 2 + 1)).astype(np.int64, copy=False)
+
+    # Generic path for non-binary arrays.
+    windows = np.lib.stride_tricks.sliding_window_view(padded, kernel_size)
+    out = np.median(windows, axis=1)
+    return out.astype(pred.dtype, copy=False)
 
 
 
@@ -74,4 +86,3 @@ def frame_prediction_to_label_line(
         prev_state = int(state)
 
     return " ".join(speech_segments)
-

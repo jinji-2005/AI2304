@@ -1,7 +1,7 @@
 from functools import lru_cache
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, List, Tuple
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -68,16 +68,37 @@ def compute_auc_eer(
 
 
 def sweep_best_threshold_by_acc(
-    scores: np.ndarray,
-    labels: np.ndarray,
+    scores_by_utt: List[np.ndarray],
+    labels_by_utt: List[np.ndarray],
     threshold_min: float = 0.1,
     threshold_max: float = 0.9,
     threshold_step: float = 0.01,
     smooth_kernel_size: int = 3,
 ) -> Tuple[float, float]:
-    """Sweep thresholds on dev scores and return (best_threshold, best_acc)."""
-    score_arr = np.asarray(scores, dtype=np.float32).reshape(-1)
-    label_arr = np.asarray(labels, dtype=np.int64).reshape(-1)
+    """Sweep thresholds on dev scores and return (best_threshold, best_acc).
+
+    Smoothing is performed utterance by utterance to avoid cross-utterance leakage.
+    """
+    if len(scores_by_utt) != len(labels_by_utt):
+        raise ValueError(
+            f"scores_by_utt and labels_by_utt length mismatch: {len(scores_by_utt)} vs {len(labels_by_utt)}"
+        )
+
+    pairs: List[Tuple[np.ndarray, np.ndarray]] = []
+    total_frames = 0
+    for idx, (scores, labels) in enumerate(zip(scores_by_utt, labels_by_utt)):
+        score_arr = np.asarray(scores, dtype=np.float32).reshape(-1)
+        label_arr = np.asarray(labels, dtype=np.int64).reshape(-1)
+        if score_arr.shape != label_arr.shape:
+            raise ValueError(
+                f"utt[{idx}] score/label shape mismatch: {score_arr.shape} vs {label_arr.shape}"
+            )
+        if score_arr.size == 0:
+            continue
+        pairs.append((score_arr, label_arr))
+        total_frames += int(score_arr.size)
+    if not pairs:
+        raise RuntimeError("No valid dev utterance found for threshold sweeping.")
 
     thresholds = np.arange(threshold_min, threshold_max + 1e-8, threshold_step, dtype=np.float32)
     best_threshold = float(thresholds[0])
@@ -90,9 +111,12 @@ def sweep_best_threshold_by_acc(
         unit="thr",
     )
     for threshold in iterator:
-        pred = (score_arr >= float(threshold)).astype(np.int64)
-        pred = smooth_predictions(pred, kernel_size=smooth_kernel_size)
-        acc = compute_acc(pred, label_arr)
+        correct = 0
+        for score_arr, label_arr in pairs:
+            pred = (score_arr >= float(threshold)).astype(np.int64)
+            pred = smooth_predictions(pred, kernel_size=smooth_kernel_size)
+            correct += int(np.sum(pred == label_arr))
+        acc = correct / total_frames
         if acc > best_acc:
             best_acc = acc
             best_threshold = float(threshold)
@@ -143,6 +167,10 @@ def build_xy(
             frame_shift=frame_cfg.frame_shift,
             feature_type=feature_cfg.feature_type,
             feature_dim=feature_cfg.feature_dim,
+            use_cmvn=feature_cfg.use_cmvn,
+            use_delta=feature_cfg.use_delta,
+            use_delta_delta=feature_cfg.use_delta_delta,
+            context_size=feature_cfg.context_size,
         )
         y = align_frame_labels_to_num_frames(label_dict[utt_id], x.shape[0])
 
@@ -156,6 +184,60 @@ def build_xy(
     x_all = np.concatenate(x_list, axis=0)
     y_all = np.concatenate(y_list, axis=0)
     return x_all, y_all
+
+
+def build_split_utterances(
+    split: str,
+    label_path: Path,
+    path_cfg: PathConfig,
+    frame_cfg: FrameConfig,
+    feature_cfg: FeatureConfig,
+) -> Tuple[List[str], List[np.ndarray], List[np.ndarray]]:
+    """Build per-utterance features and aligned labels for one split."""
+    wav_files = list_wav_files(path_cfg.wav_root / split)
+    label_dict = read_label_from_file(
+        label_path,
+        frame_size=frame_cfg.frame_size,
+        frame_shift=frame_cfg.frame_shift,
+    )
+
+    utt_ids: List[str] = []
+    x_list: List[np.ndarray] = []
+    y_list: List[np.ndarray] = []
+    iterator = tqdm(
+        wav_files,
+        total=len(wav_files),
+        desc=f"[{split}] feature extraction",
+        unit="utt",
+    )
+    for wav_path in iterator:
+        utt_id = wav_path.stem
+        if utt_id not in label_dict:
+            continue
+
+        waveform = load_waveform(wav_path, frame_cfg.sample_rate)
+        x = extract_spectral_features(
+            waveform=waveform,
+            sample_rate=frame_cfg.sample_rate,
+            frame_size=frame_cfg.frame_size,
+            frame_shift=frame_cfg.frame_shift,
+            feature_type=feature_cfg.feature_type,
+            feature_dim=feature_cfg.feature_dim,
+            use_cmvn=feature_cfg.use_cmvn,
+            use_delta=feature_cfg.use_delta,
+            use_delta_delta=feature_cfg.use_delta_delta,
+            context_size=feature_cfg.context_size,
+        )
+        y = align_frame_labels_to_num_frames(label_dict[utt_id], x.shape[0])
+
+        utt_ids.append(utt_id)
+        x_list.append(x)
+        y_list.append(y)
+        iterator.set_postfix({"kept": len(x_list)})
+
+    if not x_list:
+        raise RuntimeError(f"No matched labeled samples in split={split}")
+    return utt_ids, x_list, y_list
 
 
 def run_dev_pipeline(project_root: Path) -> DevResult:
@@ -180,29 +262,38 @@ def run_dev_pipeline(project_root: Path) -> DevResult:
     )
     path_cfg = PathConfig(data_root=data_root)
     model = DNNClassifier()
+    model_cfg = ModelConfig()
     frame_cfg = FrameConfig()
     fea_cfg = FeatureConfig()
     x_all, y_all = build_xy("train", path_cfg.train_label_path, path_cfg, frame_cfg, fea_cfg)
     model.fit(x_all, y_all)
-    x_dev, y_dev = build_xy("dev", path_cfg.dev_label_path, path_cfg, frame_cfg, fea_cfg)
 
-    # 1) continuous scores for AUC/EER and threshold sweep
-    scores_dev = model.score_frames(x_dev)
+    _, x_dev_list, y_dev_list = build_split_utterances(
+        "dev",
+        path_cfg.dev_label_path,
+        path_cfg,
+        frame_cfg,
+        fea_cfg,
+    )
+    score_iterator = tqdm(
+        x_dev_list,
+        total=len(x_dev_list),
+        desc="[dev] scoring",
+        unit="utt",
+    )
+    scores_dev_list = [model.score_frames(x_dev) for x_dev in score_iterator]
+    scores_dev = np.concatenate(scores_dev_list, axis=0)
+    y_dev = np.concatenate(y_dev_list, axis=0)
 
     # 2) sweep threshold on dev set to maximize frame-level ACC
     best_threshold, best_acc = sweep_best_threshold_by_acc(
-        scores=scores_dev,
-        labels=y_dev,
-        threshold_min=0.1,
-        threshold_max=0.9,
-        threshold_step=0.01,
-        smooth_kernel_size=3,
+        scores_by_utt=scores_dev_list,
+        labels_by_utt=y_dev_list,
+        threshold_min=model_cfg.threshold_min,
+        threshold_max=model_cfg.threshold_max,
+        threshold_step=model_cfg.threshold_step,
+        smooth_kernel_size=model_cfg.smooth_kernel_size,
     )
-
-
-    # 3) use best threshold to build final dev prediction for consistency
-    preds_dev = (scores_dev >= best_threshold).astype(np.int64)
-    preds_dev = smooth_predictions(preds_dev, kernel_size=3)
     auc, eer = compute_auc_eer(scores_dev, y_dev, project_root)
 
     res = {}
@@ -227,11 +318,37 @@ def run_test_pipeline(project_root: Path, output_path: Path) -> None:
         / "vad"
     )
     frame_cfg = FrameConfig()
+    model_cfg = ModelConfig()
     path_cfg = PathConfig(data_root=data_root)
     model = DNNClassifier()
     fea_cfg = FeatureConfig()
     x_all,y_all = build_xy('train',path_cfg.train_label_path,path_cfg,frame_cfg,fea_cfg)
     model.fit(x_all,y_all)
+
+    # Reuse dev split to select decode threshold, then apply on test.
+    _, x_dev_list, y_dev_list = build_split_utterances(
+        "dev",
+        path_cfg.dev_label_path,
+        path_cfg,
+        frame_cfg,
+        fea_cfg,
+    )
+    score_iterator = tqdm(
+        x_dev_list,
+        total=len(x_dev_list),
+        desc="[dev] scoring for test threshold",
+        unit="utt",
+    )
+    scores_dev_list = [model.score_frames(x_dev) for x_dev in score_iterator]
+    best_threshold, _ = sweep_best_threshold_by_acc(
+        scores_by_utt=scores_dev_list,
+        labels_by_utt=y_dev_list,
+        threshold_min=model_cfg.threshold_min,
+        threshold_max=model_cfg.threshold_max,
+        threshold_step=model_cfg.threshold_step,
+        smooth_kernel_size=model_cfg.smooth_kernel_size,
+    )
+
     wave_files = list_wav_files(path_cfg.wav_root / 'test')
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -242,15 +359,21 @@ def run_test_pipeline(project_root: Path, output_path: Path) -> None:
 
             waveform = load_waveform(wav_path, frame_cfg.sample_rate)
             x_test = extract_spectral_features(
-            waveform,
-            frame_cfg.sample_rate,
-            frame_cfg.frame_size,
-            frame_cfg.frame_shift,
-            feature_type='fbank',
-            feature_dim=fea_cfg.feature_dim
+            waveform=waveform,
+            sample_rate=frame_cfg.sample_rate,
+            frame_size=frame_cfg.frame_size,
+            frame_shift=frame_cfg.frame_shift,
+            feature_type=fea_cfg.feature_type,
+            feature_dim=fea_cfg.feature_dim,
+            use_cmvn=fea_cfg.use_cmvn,
+            use_delta=fea_cfg.use_delta,
+            use_delta_delta=fea_cfg.use_delta_delta,
+            context_size=fea_cfg.context_size,
             )
             
-            pred = model.predict_frames(x_test)  # shape (T,), 0/1 from dual-threshold decode
+            score = model.score_frames(x_test)
+            pred = (score >= best_threshold).astype(np.int64)
+            pred = smooth_predictions(pred, kernel_size=model_cfg.smooth_kernel_size)
             seg_str = frame_prediction_to_label_line(
                 pred,
                 frame_cfg.frame_size,

@@ -16,13 +16,16 @@ class DNNClassifier:
     """Statistical classifier scaffold for Task2."""
 
     def __init__(self, model_type: str | None = None):
+        self.model_cfg = ModelConfig()
         if model_type is None:
-            model_type = ModelConfig().model_type
+            model_type = self.model_cfg.model_type
         if model_type not in ("gmm", "dnn"):
             raise ValueError(f"Unsupported model_type: {model_type}")
         self.model_type = model_type
-        self.epoch = ModelConfig().train_epoch
-        self.batch_size = ModelConfig().batch_size
+        self.epoch = self.model_cfg.train_epoch
+        self.batch_size = self.model_cfg.batch_size
+        self.learning_rate = self.model_cfg.learning_rate
+        self.weight_decay = self.model_cfg.weight_decay
         # 特征标准化
         self.scaler = StandardScaler()
 
@@ -77,11 +80,15 @@ class DNNClassifier:
         elif model_type == "dnn":
             input_dim = x_std.shape[1]
             self.dnn = nn.Sequential(
-                nn.Linear(input_dim, 128),
+                nn.Linear(input_dim, self.model_cfg.hidden_dim_1),
+                nn.BatchNorm1d(self.model_cfg.hidden_dim_1),
                 nn.ReLU(),
-                nn.Linear(128, 64),
+                nn.Dropout(self.model_cfg.dropout),
+                nn.Linear(self.model_cfg.hidden_dim_1, self.model_cfg.hidden_dim_2),
+                nn.BatchNorm1d(self.model_cfg.hidden_dim_2),
                 nn.ReLU(),
-                nn.Linear(64, 1),
+                nn.Dropout(self.model_cfg.dropout),
+                nn.Linear(self.model_cfg.hidden_dim_2, 1),
             )
             self.dnn.to(self.device) # 网络参数需要 to device
 
@@ -92,14 +99,16 @@ class DNNClassifier:
             epochs = self.epoch
             train_loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, drop_last=False)
 
-            # 使用 BCE criterion
             pos_count = float(max(1, np.sum(y == 1)))
             neg_count = float(max(1, np.sum(y == 0)))
             pos_weight = torch.tensor([neg_count / pos_count], dtype=torch.float32, device=self.device)
-            criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-            
-            # Adam 优化器
-            optimizer = torch.optim.Adam(self.dnn.parameters(), lr=1e-3)
+
+            optimizer = torch.optim.Adam(
+                self.dnn.parameters(),
+                lr=self.learning_rate,
+                weight_decay=self.weight_decay,
+            )
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
             epoch_bar = tqdm(range(1, epochs + 1), desc=f"[fit:{self.model_type}] epochs", unit="epoch")
             for epoch in epoch_bar:
@@ -119,13 +128,20 @@ class DNNClassifier:
 
                     optimizer.zero_grad(set_to_none=True)
                     logits = self.dnn(xb)
-                    loss = sigmoid_focal_loss(
-                        logits,     # [B, 1]
-                        yb,         # [B, 1], float
-                        alpha=0.25, # 对正类(语音)的权重
-                        gamma=2.0,
-                        reduction="mean",
-                    )
+                    if self.model_cfg.use_focal_loss:
+                        loss = sigmoid_focal_loss(
+                            logits,
+                            yb,
+                            alpha=self.model_cfg.focal_alpha,
+                            gamma=self.model_cfg.focal_gamma,
+                            reduction="mean",
+                        )
+                    else:
+                        loss = nn.functional.binary_cross_entropy_with_logits(
+                            logits,
+                            yb,
+                            pos_weight=pos_weight,
+                        )
                     
                     loss.backward()
                     optimizer.step()
@@ -136,7 +152,15 @@ class DNNClassifier:
                     batch_bar.set_postfix({"loss": f"{loss.item():.5f}"})
 
                 epoch_loss = running_loss / max(seen, 1)
-                epoch_bar.set_postfix({"loss": f"{epoch_loss:.5f}", "device": str(self.device)})
+                current_lr = optimizer.param_groups[0]["lr"]
+                epoch_bar.set_postfix(
+                    {
+                        "loss": f"{epoch_loss:.5f}",
+                        "lr": f"{current_lr:.2e}",
+                        "device": str(self.device),
+                    }
+                )
+                scheduler.step()
 
             self.is_fitted = True
 
@@ -166,6 +190,8 @@ class DNNClassifier:
             llr = ll_s - ll_n
             score = expit(llr)
         elif model_type == "dnn":
+            if self.dnn is None:
+                raise RuntimeError("DNN model is not initialized. Please call fit() first.")
 
             self.dnn.eval()
             with torch.no_grad():
