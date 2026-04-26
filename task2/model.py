@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
+from torchvision.ops import sigmoid_focal_loss
 from tqdm.auto import tqdm
 
 from config import ModelConfig
@@ -88,16 +89,16 @@ class DNNClassifier:
             y_tensor = torch.from_numpy(y.astype(np.float32)).float().unsqueeze(1) # unsqueeze 把单维度向量增加一个维度
             dataset = TensorDataset(x_tensor, y_tensor)
 
-            batch_size = self.batch_size
             epochs = self.epoch
             train_loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, drop_last=False)
 
-            # 用类别权重缓解语音/静音不均衡
+            # 使用 BCE criterion
             pos_count = float(max(1, np.sum(y == 1)))
             neg_count = float(max(1, np.sum(y == 0)))
             pos_weight = torch.tensor([neg_count / pos_count], dtype=torch.float32, device=self.device)
-
             criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+            
+            # Adam 优化器
             optimizer = torch.optim.Adam(self.dnn.parameters(), lr=1e-3)
 
             epoch_bar = tqdm(range(1, epochs + 1), desc=f"[fit:{self.model_type}] epochs", unit="epoch")
@@ -118,7 +119,14 @@ class DNNClassifier:
 
                     optimizer.zero_grad(set_to_none=True)
                     logits = self.dnn(xb)
-                    loss = criterion(logits, yb)
+                    loss = sigmoid_focal_loss(
+                        logits,     # [B, 1]
+                        yb,         # [B, 1], float
+                        alpha=0.25, # 对正类(语音)的权重
+                        gamma=2.0,
+                        reduction="mean",
+                    )
+                    
                     loss.backward()
                     optimizer.step()
 

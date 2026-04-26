@@ -18,9 +18,8 @@ class FeatureConfig:
 @dataclass
 class ModelConfig:
     model_type: str = "dnn"  # e.g. gmm / dnn
-    train_epoch: int = 4
+    train_epoch: int = 10
     batch_size :int = 1024
-
 
 @dataclass
 class PathConfig:
