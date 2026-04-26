@@ -20,7 +20,8 @@ class DNNClassifier:
         if model_type not in ("gmm", "dnn"):
             raise ValueError(f"Unsupported model_type: {model_type}")
         self.model_type = model_type
-
+        self.epoch = ModelConfig().train_epoch
+        self.batch_size = ModelConfig().batch_size
         # 特征标准化
         self.scaler = StandardScaler()
 
@@ -87,9 +88,9 @@ class DNNClassifier:
             y_tensor = torch.from_numpy(y.astype(np.float32)).float().unsqueeze(1) # unsqueeze 把单维度向量增加一个维度
             dataset = TensorDataset(x_tensor, y_tensor)
 
-            batch_size = 1024
-            epochs = 20
-            train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=False)
+            batch_size = self.batch_size
+            epochs = self.epoch
+            train_loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, drop_last=False)
 
             # 用类别权重缓解语音/静音不均衡
             pos_count = float(max(1, np.sum(y == 1)))
@@ -157,8 +158,7 @@ class DNNClassifier:
             llr = ll_s - ll_n
             score = expit(llr)
         elif model_type == "dnn":
-            if self.dnn is None:
-                raise RuntimeError("DNN model is not initialized. Please call fit() first.")
+
             self.dnn.eval()
             with torch.no_grad():
                 x_tensor = torch.from_numpy(x_std).float().to(self.device)

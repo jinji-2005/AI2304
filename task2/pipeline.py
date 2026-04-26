@@ -107,20 +107,6 @@ def sweep_best_threshold_by_acc(
     return best_threshold, float(best_acc)
 
 
-def build_runtime_components(project_root: Path) -> Tuple[PathConfig, FrameConfig, FeatureConfig, DNNClassifier]:
-    """Build common configs/model used by Task2 train/dev/test pipeline."""
-    data_root = (
-        Path(project_root)
-        / "voice-activity-detection-sjtu-spring-2024"
-        / "vad"
-    )
-    path_cfg = PathConfig(data_root=data_root)
-    frame_cfg = FrameConfig()
-    feature_cfg = FeatureConfig()
-    model = DNNClassifier()
-    return path_cfg, frame_cfg, feature_cfg, model
-
-
 def build_xy(
     split: str,
     label_path: Path,
@@ -212,6 +198,7 @@ def run_dev_pipeline(project_root: Path) -> DevResult:
         threshold_step=0.01,
         smooth_kernel_size=3,
     )
+
 
     # 3) use best threshold to build final dev prediction for consistency
     preds_dev = (scores_dev >= best_threshold).astype(np.int64)
