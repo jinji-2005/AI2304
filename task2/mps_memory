@@ -1,0 +1,16 @@
+import torch
+
+def print_mps_memory(prefix=""):
+    if torch.backends.mps.is_available():
+        allocated = torch.mps.current_allocated_memory() / 1024**3
+        driver = torch.mps.driver_allocated_memory() / 1024**3
+        recommended = torch.mps.recommended_max_memory() / 1024**3
+
+        print(
+            f"{prefix} "
+            f"tensor_allocated={allocated:.2f} GB, "
+            f"driver_allocated={driver:.2f} GB, "
+            f"recommended_max={recommended:.2f} GB"
+        )
+
+print_mps_memory(prefix="111")

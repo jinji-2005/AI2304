@@ -14,19 +14,19 @@ class FeatureConfig:
     feature_type: str = "fbank"  # e.g. mfcc / fbank / plp
     feature_dim: int = 40
     use_cmvn: bool = True
-    use_delta: bool = True
-    use_delta_delta: bool = True
-    context_size: int = 1
+    context_size= 1
+    use_delta=True
+    use_delta_delta= False
 
 
 @dataclass
 class ModelConfig:
     model_type: str = "dnn"  # e.g. gmm / dnn
-    train_epoch: int = 20
-    batch_size: int = 1024
+    train_epoch: int = 10
+    batch_size: int = 1024*5
     learning_rate: float = 1e-3
     weight_decay: float = 1e-5
-    hidden_dim_1: int = 256
+    hidden_dim_1: int = 64
     hidden_dim_2: int = 128
     dropout: float = 0.2
     use_focal_loss: bool = True

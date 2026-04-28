@@ -104,5 +104,6 @@ def align_frame_labels_to_num_frames(labels: List[int], num_frames: int) -> np.n
         return labels_arr
     if len_arr > num_frames:
         return labels_arr[:num_frames]
+    # 一般应该是 标签比frame数要短，最后直接给标签打 0 的padding
     pad_len = num_frames - len_arr
     return np.pad(labels_arr, (0, pad_len), mode="constant", constant_values=0)

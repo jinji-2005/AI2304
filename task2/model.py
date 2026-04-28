@@ -81,13 +81,13 @@ class DNNClassifier:
             input_dim = x_std.shape[1]
             self.dnn = nn.Sequential(
                 nn.Linear(input_dim, self.model_cfg.hidden_dim_1),
-                nn.BatchNorm1d(self.model_cfg.hidden_dim_1),
+                #nn.BatchNorm1d(self.model_cfg.hidden_dim_1),
                 nn.ReLU(),
-                nn.Dropout(self.model_cfg.dropout),
+                #nn.Dropout(self.model_cfg.dropout),
                 nn.Linear(self.model_cfg.hidden_dim_1, self.model_cfg.hidden_dim_2),
-                nn.BatchNorm1d(self.model_cfg.hidden_dim_2),
+                #nn.BatchNorm1d(self.model_cfg.hidden_dim_2),
                 nn.ReLU(),
-                nn.Dropout(self.model_cfg.dropout),
+                #nn.Dropout(self.model_cfg.dropout),
                 nn.Linear(self.model_cfg.hidden_dim_2, 1),
             )
             self.dnn.to(self.device) # 网络参数需要 to device
