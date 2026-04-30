@@ -1,0 +1,167 @@
+[
+  {
+    "exp_name": "dnn_bn_dropout__fbank",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 1892.8778,
+    "acc": 0.9692515971976312,
+    "auc": 0.9913297632347299,
+    "eer": 0.03731579394846621,
+    "best_threshold": 0.3999999463558197,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/dnn_bn_dropout__fbank"
+  },
+  {
+    "exp_name": "dnn_bn_dropout__fbank_delta",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 3546.9489,
+    "acc": 0.9804453593879696,
+    "auc": 0.9960496785713089,
+    "eer": 0.0260135949745704,
+    "best_threshold": 0.3999999463558197,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/dnn_bn_dropout__fbank_delta"
+  },
+  {
+    "exp_name": "dnn_bn_dropout__fbank_delta_deltadelta",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 3027.2822,
+    "acc": 0.9810932335295933,
+    "auc": 0.9963391148738512,
+    "eer": 0.02475082616579625,
+    "best_threshold": 0.4199999272823334,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/dnn_bn_dropout__fbank_delta_deltadelta"
+  },
+  {
+    "exp_name": "dnn_bn_dropout__mfcc",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 3155.9491,
+    "acc": 0.9660611871012699,
+    "auc": 0.9895135627189895,
+    "eer": 0.039735403939671426,
+    "best_threshold": 0.3899999260902405,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/dnn_bn_dropout__mfcc"
+  },
+  {
+    "exp_name": "dnn_bn_dropout__mfcc_delta",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 2315.0003,
+    "acc": 0.979379612118093,
+    "auc": 0.9955030474088413,
+    "eer": 0.02665055451718606,
+    "best_threshold": 0.3899999260902405,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/dnn_bn_dropout__mfcc_delta"
+  },
+  {
+    "exp_name": "dnn_mlp__fbank",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 3027.1557,
+    "acc": 0.969325607424706,
+    "auc": 0.9914027927960153,
+    "eer": 0.037261436350737524,
+    "best_threshold": 0.3999999463558197,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/dnn_mlp__fbank"
+  },
+  {
+    "exp_name": "dnn_mlp__fbank_delta",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 3588.9966,
+    "acc": 0.9806059046497779,
+    "auc": 0.996088892581845,
+    "eer": 0.02590348599455588,
+    "best_threshold": 0.3899999260902405,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/dnn_mlp__fbank_delta"
+  },
+  {
+    "exp_name": "dnn_mlp__fbank_delta_deltadelta",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 4260.3749,
+    "acc": 0.9814359578118933,
+    "auc": 0.99638348370537,
+    "eer": 0.024697862352624705,
+    "best_threshold": 0.3999999463558197,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/dnn_mlp__fbank_delta_deltadelta"
+  },
+  {
+    "exp_name": "dnn_mlp__mfcc",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 3353.2164,
+    "acc": 0.9660088106328786,
+    "auc": 0.9893531672047124,
+    "eer": 0.04009221278630077,
+    "best_threshold": 0.3999999463558197,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/dnn_mlp__mfcc"
+  },
+  {
+    "exp_name": "dnn_mlp__mfcc_delta",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 3736.8961,
+    "acc": 0.979224759950675,
+    "auc": 0.9952617536043483,
+    "eer": 0.027491006605145016,
+    "best_threshold": 0.3999999463558197,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/dnn_mlp__mfcc_delta"
+  },
+  {
+    "exp_name": "gmm__fbank",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 401.3998,
+    "acc": 0.9310725675969562,
+    "auc": 0.9607715011425441,
+    "eer": 0.07345244616158701,
+    "best_threshold": 0.10000000149011612,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/gmm__fbank"
+  },
+  {
+    "exp_name": "gmm__fbank_delta",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 1572.3379,
+    "acc": 0.945333769044824,
+    "auc": 0.9709629586664039,
+    "eer": 0.04982361656429319,
+    "best_threshold": 0.10000000149011612,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/gmm__fbank_delta"
+  },
+  {
+    "exp_name": "gmm__fbank_delta_deltadelta",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 1794.6286,
+    "acc": 0.9561324304844709,
+    "auc": 0.9699253542028967,
+    "eer": 0.04657749233070047,
+    "best_threshold": 0.10000000149011612,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/gmm__fbank_delta_deltadelta"
+  },
+  {
+    "exp_name": "gmm__mfcc",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 1201.0241,
+    "acc": 0.9331494084305619,
+    "auc": 0.969179373919433,
+    "eer": 0.0718412312135264,
+    "best_threshold": 0.10000000149011612,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/gmm__mfcc"
+  },
+  {
+    "exp_name": "gmm__mfcc_delta",
+    "return_code": 0,
+    "status": "success",
+    "duration_sec": 1392.4355,
+    "acc": 0.9607142328498378,
+    "auc": 0.979138366801848,
+    "eer": 0.04939572470524941,
+    "best_threshold": 0.10000000149011612,
+    "exp_dir": "/home/lihaochen/Work_Dir/AI2304/result/task2_batch_20260429_093055/gmm__mfcc_delta"
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "model_type": "dnn",
+  "dnn_variant": "mlp",
+  "feature_type": "mfcc",
+  "use_delta": true,
+  "use_delta_delta": false,
+  "use_cmvn": true,
+  "context_size": 1,
+  "feature_dim": 40,
+  "assigned_gpu": 3
+}

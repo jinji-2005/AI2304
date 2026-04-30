@@ -81,3 +81,7 @@ def frame_prediction_to_label_line(
 # std = np.std(a)
 # a = (a-mean)/std
 # print(a)
+
+import torch
+print(torch.cuda.is_available())
+

@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
 import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, auc
 from tqdm.auto import tqdm
 
 from config import FeatureConfig, FrameConfig, ModelConfig, PathConfig
@@ -20,6 +22,77 @@ from postprocess import frame_prediction_to_label_line,smooth_predictions
 class DevResult(Dict[str, float]):
     """Container for development metrics."""
 
+
+def save_roc_curve(
+    pred_scores: np.ndarray,
+    label_binary: np.ndarray,
+    mode_name: str,
+    out_dir: Path,
+) -> Path:
+    """Save one ROC curve image with AUC annotation."""
+    scores = np.asarray(pred_scores).reshape(-1)
+    labels = np.asarray(label_binary).reshape(-1).astype(np.int64)
+    if scores.shape != labels.shape:
+        raise ValueError(f"score/label shape mismatch: {scores.shape} vs {labels.shape}")
+
+    fpr, tpr, _ = roc_curve(labels, scores)
+    roc_auc = float(auc(fpr, tpr))
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.plot(fpr, tpr, linewidth=2.0, label=f"AUC = {roc_auc:.6f}")
+    ax.plot([0, 1], [0, 1], linestyle="--", linewidth=1.2, color="gray", label="random")
+    ax.set_title(f"ROC Curve ({mode_name})")
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="lower right")
+    fig.tight_layout()
+    save_path = out_dir / "roc_curve.png"
+    fig.savefig(save_path, dpi=200)
+    plt.close(fig)
+    return save_path
+
+
+def evaluate_metrics(
+    pred_scores: np.ndarray,
+    pred_labels: np.ndarray,
+    label_binary: np.ndarray,
+    project_root: Path,
+) -> Dict[str, float]:
+    pred_arr = np.asarray(pred_scores).reshape(-1)
+    label_arr = np.asarray(label_binary).reshape(-1)
+    if pred_arr.shape != label_arr.shape:
+        raise ValueError("pred_scores and labels shape mismatch in evaluate_metrics")
+
+    auc, eer = compute_auc_eer(pred_arr, label_arr, project_root)
+
+    pred_bin = np.asarray(pred_labels).reshape(-1).astype(np.int64)
+    label_bin = label_arr.astype(np.int64)
+    if pred_bin.shape != label_bin.shape:
+        raise ValueError("pred_labels and labels shape mismatch in evaluate_metrics")
+
+    tp = float(np.sum((pred_bin == 1) & (label_bin == 1)))
+    fp = float(np.sum((pred_bin == 1) & (label_bin == 0)))
+    fn = float(np.sum((pred_bin == 0) & (label_bin == 1)))
+    tn = float(np.sum((pred_bin == 0) & (label_bin == 0)))
+
+    eps = 1e-8
+    recall = float(tp / (tp + fn + eps))  # 召回率
+    precision = float(tp / (tp + fp + eps))  # 精确度
+    F1 = float(2 * precision * recall / (precision + recall + eps))  # 平衡召回率与精确度
+    FAR = float(fp / (fp + tn + eps))  # 误报率
+    FRR = float(fn / (fn + tp + eps))  # 漏检率
+
+    return {
+        "auc": auc,
+        "eer": eer,
+        "precision": precision,
+        "recall": recall,
+        "F1": F1,
+        "FAR": FAR,
+        "FRR": FRR,
+    }
 
 def _evaluate_py_path(project_root: Path) -> Path:
     return (
@@ -240,6 +313,40 @@ def build_split_utterances(
     return utt_ids, x_list, y_list
 
 
+def tune_threshold_on_dev(
+    model: DNNClassifier,
+    path_cfg: PathConfig,
+    frame_cfg: FrameConfig,
+    feature_cfg: FeatureConfig,
+    model_cfg: ModelConfig,
+) -> Tuple[float, float, List[np.ndarray], List[np.ndarray]]:
+    """Score dev utterances and return the dev-selected decoding threshold."""
+    _, x_dev_list, y_dev_list = build_split_utterances(
+        "dev",
+        path_cfg.dev_label_path,
+        path_cfg,
+        frame_cfg,
+        feature_cfg,
+    )
+    score_iterator = tqdm(
+        x_dev_list,
+        total=len(x_dev_list),
+        desc="[dev] scoring",
+        unit="utt",
+    )
+    scores_dev_list = [model.score_frames(x_dev) for x_dev in score_iterator]
+
+    best_threshold, best_acc = sweep_best_threshold_by_acc(
+        scores_by_utt=scores_dev_list,
+        labels_by_utt=y_dev_list,
+        threshold_min=model_cfg.threshold_min,
+        threshold_max=model_cfg.threshold_max,
+        threshold_step=model_cfg.threshold_step,
+        smooth_kernel_size=model_cfg.smooth_kernel_size,
+    )
+    return float(best_threshold), float(best_acc), scores_dev_list, y_dev_list
+
+
 def run_dev_pipeline(project_root: Path) -> DevResult:
     """Run Task2 development experiment and return metric dict.
 
@@ -268,50 +375,37 @@ def run_dev_pipeline(project_root: Path) -> DevResult:
     x_all, y_all = build_xy("train", path_cfg.train_label_path, path_cfg, frame_cfg, fea_cfg)
     model.fit(x_all, y_all)
 
-    _, x_dev_list, y_dev_list = build_split_utterances(
-        "dev",
-        path_cfg.dev_label_path,
+    best_threshold, best_acc, scores_dev_list, y_dev_list = tune_threshold_on_dev(
+        model,
         path_cfg,
         frame_cfg,
         fea_cfg,
+        model_cfg,
     )
-    score_iterator = tqdm(
-        x_dev_list,
-        total=len(x_dev_list),
-        desc="[dev] scoring",
-        unit="utt",
-    )
-    scores_dev_list = [model.score_frames(x_dev) for x_dev in score_iterator]
     scores_dev = np.concatenate(scores_dev_list, axis=0)
     y_dev = np.concatenate(y_dev_list, axis=0)
 
-    # 2) sweep threshold on dev set to maximize frame-level ACC
-    best_threshold, best_acc = sweep_best_threshold_by_acc(
-        scores_by_utt=scores_dev_list,
-        labels_by_utt=y_dev_list,
-        threshold_min=model_cfg.threshold_min,
-        threshold_max=model_cfg.threshold_max,
-        threshold_step=model_cfg.threshold_step,
-        smooth_kernel_size=model_cfg.smooth_kernel_size,
-    )
-    auc, eer = compute_auc_eer(scores_dev, y_dev, project_root)
-
     res = {}
     res["acc"] = best_acc
-    res["auc"] = auc
-    res["eer"] = eer
+    preds_dev = (scores_dev >= float(best_threshold)).astype(np.int64)
+    res.update(evaluate_metrics(scores_dev, preds_dev, y_dev, project_root))
+    mode_name = model.model_type
+    if model.model_type == "dnn":
+        mode_name = f"dnn-{model.model_cfg.dnn_variant}"
+    roc_dir = model.output_dir / "images" / model.model_type
+    save_roc_curve(scores_dev, y_dev, mode_name, roc_dir)
+
     res["best_threshold"] = float(best_threshold)
     return res
 
 
-def run_test_pipeline(project_root: Path, output_path: Path) -> None:
-    """Run Task2 inference on test set and write test_label.txt."""
+def run_test_pipeline(project_root: Path, output_path: Path) -> Dict[str, object]:
+    """Train on train split, tune threshold on dev, and write test_label.txt."""
     # Data usage plan:
-    # 1) Read test wavs from wavs/test
-    # 2) Apply trained model to obtain frame predictions
-    # 3) Convert each utterance to timestamp segments
+    # 1) Train with wavs/train + data/train_label.txt
+    # 2) Tune the decoding threshold with wavs/dev + data/dev_label.txt
+    # 3) Apply the trained model and dev-selected threshold to wavs/test
     # 4) Write `utt_id <space> start,end ...` per line to output_path
-    # TODO: implement
     data_root = (
         Path(project_root)
         / "voice-activity-detection-sjtu-spring-2024"
@@ -322,57 +416,47 @@ def run_test_pipeline(project_root: Path, output_path: Path) -> None:
     path_cfg = PathConfig(data_root=data_root)
     model = DNNClassifier()
     fea_cfg = FeatureConfig()
-    x_all,y_all = build_xy('train',path_cfg.train_label_path,path_cfg,frame_cfg,fea_cfg)
-    model.fit(x_all,y_all)
+    x_all, y_all = build_xy("train", path_cfg.train_label_path, path_cfg, frame_cfg, fea_cfg)
+    model.fit(x_all, y_all)
 
-    # Reuse dev split to select decode threshold, then apply on test.
-    _, x_dev_list, y_dev_list = build_split_utterances(
-        "dev",
-        path_cfg.dev_label_path,
+    test_threshold, dev_best_acc, _, _ = tune_threshold_on_dev(
+        model,
         path_cfg,
         frame_cfg,
         fea_cfg,
-    )
-    score_iterator = tqdm(
-        x_dev_list,
-        total=len(x_dev_list),
-        desc="[dev] scoring for test threshold",
-        unit="utt",
-    )
-    scores_dev_list = [model.score_frames(x_dev) for x_dev in score_iterator]
-    best_threshold, _ = sweep_best_threshold_by_acc(
-        scores_by_utt=scores_dev_list,
-        labels_by_utt=y_dev_list,
-        threshold_min=model_cfg.threshold_min,
-        threshold_max=model_cfg.threshold_max,
-        threshold_step=model_cfg.threshold_step,
-        smooth_kernel_size=model_cfg.smooth_kernel_size,
+        model_cfg,
     )
 
-    wave_files = list_wav_files(path_cfg.wav_root / 'test')
+    wave_files = list_wav_files(path_cfg.wav_root / "test")
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with output_path.open("w", encoding="utf-8") as f:
-        for wav_path in wave_files:
+        iterator = tqdm(
+            wave_files,
+            total=len(wave_files),
+            desc="[test] inference",
+            unit="utt",
+        )
+        for wav_path in iterator:
             utt_id = wav_path.stem
 
             waveform = load_waveform(wav_path, frame_cfg.sample_rate)
             x_test = extract_spectral_features(
-            waveform=waveform,
-            sample_rate=frame_cfg.sample_rate,
-            frame_size=frame_cfg.frame_size,
-            frame_shift=frame_cfg.frame_shift,
-            feature_type=fea_cfg.feature_type,
-            feature_dim=fea_cfg.feature_dim,
-            use_cmvn=fea_cfg.use_cmvn,
-            use_delta=fea_cfg.use_delta,
-            use_delta_delta=fea_cfg.use_delta_delta,
-            context_size=fea_cfg.context_size,
+                waveform=waveform,
+                sample_rate=frame_cfg.sample_rate,
+                frame_size=frame_cfg.frame_size,
+                frame_shift=frame_cfg.frame_shift,
+                feature_type=fea_cfg.feature_type,
+                feature_dim=fea_cfg.feature_dim,
+                use_cmvn=fea_cfg.use_cmvn,
+                use_delta=fea_cfg.use_delta,
+                use_delta_delta=fea_cfg.use_delta_delta,
+                context_size=fea_cfg.context_size,
             )
-            
+
             score = model.score_frames(x_test)
-            pred = (score >= best_threshold).astype(np.int64)
+            pred = (score >= test_threshold).astype(np.int64)
             pred = smooth_predictions(pred, kernel_size=model_cfg.smooth_kernel_size)
             seg_str = frame_prediction_to_label_line(
                 pred,
@@ -382,7 +466,14 @@ def run_test_pipeline(project_root: Path, output_path: Path) -> None:
 
             line = f"{utt_id} {seg_str}".rstrip()  # seg_str为空时只保留utt_id
             f.write(line + "\n")
-    
+
+    return {
+        "output_path": str(output_path),
+        "threshold": test_threshold,
+        "dev_best_acc": dev_best_acc,
+        "num_test_utts": len(wave_files),
+    }
+
 
 
 def compute_acc(pred_binary: np.ndarray, label_binary: np.ndarray) -> float:

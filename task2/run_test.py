@@ -41,9 +41,11 @@ def main() -> None:
     t0 = time.time()
     status = "success"
     err_msg = None
+    result = {"output_path": str(args.output)}
     try:
-        run_test_pipeline(args.project_root, args.output)
+        result = run_test_pipeline(args.project_root, args.output)
         print(f"Task2 test labels written to: {args.output}")
+        print(f"Dev-selected threshold: {result['threshold']:.6f}")
     except Exception as exc:
         status = "failed"
         err_msg = f"{type(exc).__name__}: {exc}"
@@ -61,7 +63,7 @@ def main() -> None:
                 "feature": asdict(FeatureConfig()),
                 "model": asdict(ModelConfig()),
             },
-            result={"output_path": str(args.output)},
+            result=result,
             extra={"exp_name": args.exp_name},
             error=err_msg,
         )
