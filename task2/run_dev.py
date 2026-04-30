@@ -1,6 +1,7 @@
 import argparse
 import sys
 import time
+import os
 from dataclasses import asdict
 from pathlib import Path
 
@@ -27,6 +28,12 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Optional experiment name for logging",
     )
+    parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=None,
+        help="Optional experiment log directory override",
+    )
     return parser.parse_args()
 
 
@@ -44,6 +51,10 @@ def main() -> None:
         err_msg = f"{type(exc).__name__}: {exc}"
         raise
     finally:
+        env_log_dir = os.getenv("TASK2_OUTPUT_DIR", "").strip()
+        effective_log_dir = args.log_dir
+        if effective_log_dir is None and env_log_dir:
+            effective_log_dir = Path(env_log_dir)
         log_path = write_experiment_log(
             project_root=args.project_root,
             task="task2",
@@ -59,6 +70,7 @@ def main() -> None:
             result=result if isinstance(result, dict) else {},
             extra={"exp_name": args.exp_name},
             error=err_msg,
+            log_dir=effective_log_dir,
         )
         print(f"Experiment log appended to: {log_path}")
 
