@@ -21,7 +21,7 @@ class FeatureConfig:
 
 @dataclass
 class ModelConfig:
-    model_type: str = "dnn"  # e.g. gmm / dnn
+    model_type: str = "gmm"  # e.g. gmm / dnn
     train_epoch: int = 10
     batch_size: int = 1024*5
     learning_rate: float = 1e-3

@@ -1,9 +1,6 @@
 from typing import Dict
 import math
 import numpy as np
-from dataset import load_waveform
-from config import FrameConfig,PathConfig
-import librosa
 """
 Task1 feature flow:
 waveform -> framing -> windowing -> per-frame features -> stacked features.
@@ -71,6 +68,8 @@ def apply_window(frames: np.ndarray, window: str = "hamming") -> np.ndarray:
         frame_len = frames.shape[1]
         window = np.hanning(frame_len)
         frames = frames * window
+    else:
+        return frames
     
     return frames
 
@@ -93,20 +92,56 @@ def extract_short_time_features(frames: np.ndarray) -> Dict[str, np.ndarray]:
     # - Used by: threshold model scoring in task1/model.py
     #
     # Keep each feature aligned by frame index.
-    feature :Dict[str,np.ndarray] = {}
-    # 短时能量
-    eps =1e-8
-    energy = np.sum(frames**2,axis=1)
-    energy = np.log(energy+eps)
-    mean = np.mean(energy)
-    std = np.std(energy) + eps
-    energy = (energy - mean)/std # 进行归一化处理
-    feature['energy'] = energy
-    # 过0率
+    feature: Dict[str, np.ndarray] = {}
+    eps = 1e-8
+
+    def _zscore(x: np.ndarray) -> np.ndarray:
+        mean = float(np.mean(x))
+        std = float(np.std(x))
+        return (x - mean) / (std + eps)
+
+    # 1) 短时能量
+    energy = np.sum(frames**2, axis=1)
+    energy = np.log(energy + eps)
+    feature["energy"] = _zscore(energy).astype(np.float32)
+
+    # 2) 过零率
     signs = np.sign(frames)
     signs[signs == 0] = 1
-    zcr = 0.5 * np.mean(np.abs(np.diff(signs,axis=1)),axis=1) # diff 查分 [-1,1,1,1,-1,1,1,-1] -> [2,0,0,-2,2,0,-2]
-    feature['zcr'] =zcr    
+    zcr = 0.5 * np.mean(np.abs(np.diff(signs, axis=1)), axis=1)
+    feature["zcr"] = _zscore(zcr).astype(np.float32)
+
+
+    # 3) 短时频谱特征（每帧 log-magnitude 谱均值）
+    mag = np.abs(np.fft.rfft(frames, axis=1))
+    st_spectrum = np.mean(np.log1p(mag), axis=1)
+    feature["st_spectrum"] = _zscore(st_spectrum).astype(np.float32)
+
+    # 4) 基频(F0)近似（每帧自相关峰值对应频率）
+    #    这里将 "进频" 按 "基频" 实现，搜索范围 [60, 400] Hz。
+    sample_rate = 16000.0
+    f0_min, f0_max = 60.0, 400.0
+    lag_min = max(1, int(sample_rate // f0_max))
+    lag_max = max(lag_min + 1, int(sample_rate // f0_min))
+    f0 = np.zeros(frames.shape[0], dtype=np.float32)
+    for i, frame in enumerate(frames):
+        x = frame - np.mean(frame)
+        ac = np.correlate(x, x, mode="full")[len(x) - 1 :]
+        if ac.size <= lag_min:
+            continue
+        ac0 = float(ac[0] + eps)
+        stop = min(lag_max, ac.size)
+        if stop <= lag_min:
+            continue
+        seg = ac[lag_min:stop]
+        peak_idx = int(np.argmax(seg))
+        peak_val = float(seg[peak_idx])
+        # 无声/弱周期帧不强行估计基频
+        if peak_val / ac0 < 0.3:
+            continue
+        lag = lag_min + peak_idx
+        f0[i] = float(sample_rate / (lag + eps))
+    feature["pitch"] = _zscore(f0).astype(np.float32)
     return feature
     
 
@@ -130,7 +165,7 @@ def stack_features(feature_dict: Dict[str, np.ndarray]) -> np.ndarray:
     # [3.0, 0.4],
     # ], dtype=np.float32)   # shape=(3,2)
 
-    order = ['energy','zcr']
+    order = ["energy", "zcr", "st_spectrum", "pitch"]
     feature = [np.asarray(feature_dict[o],dtype=np.float32) for o in order]
     feature = np.stack(feature,axis=1) # [[1,2,3],[2,3,4]]
     return feature
@@ -149,4 +184,3 @@ def stack_features(feature_dict: Dict[str, np.ndarray]) -> np.ndarray:
 # c = np.array([[1,1],[2,2]])
 # print(np.mean(c,axis=0))
 # print(np.mean(c,axis=1))
-

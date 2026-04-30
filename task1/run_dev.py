@@ -8,7 +8,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from config import FrameConfig, ThresholdConfig
+from config import FeatureConfig, FrameConfig, ThresholdConfig
 from experiment_logger import write_experiment_log
 from pipeline import run_dev_pipeline
 
@@ -60,7 +60,7 @@ def main() -> None:
             config={
                 "frame": asdict(FrameConfig()),
                 "threshold": threshold_cfg,
-                "feature": {"name": "short_time", "streams": ["energy", "zcr"]},
+                "feature": asdict(FeatureConfig()),
             },
             result=result if isinstance(result, dict) else {},
             extra={"exp_name": args.exp_name},

@@ -66,7 +66,7 @@ def main() -> None:
             config={
                 "frame": asdict(FrameConfig()),
                 "threshold": threshold_cfg,
-                "feature": {"name": "short_time", "streams": ["energy", "zcr"]},
+                "feature": {"name": "short_time", "streams": ["energy", "zcr", "st_spectrum", "pitch"]},
             },
             result=result if isinstance(result, dict) else {"output_path": str(args.output)},
             extra={"exp_name": args.exp_name},

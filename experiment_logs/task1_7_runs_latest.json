@@ -1,0 +1,317 @@
+[
+  {
+    "exp_name": "tbl_energy_no_20260430_143423",
+    "model": "能量",
+    "window": "None",
+    "config": {
+      "frame": {
+        "sample_rate": 16000,
+        "frame_size": 0.032,
+        "frame_shift": 0.008,
+        "window_type": "no",
+        "smooth_size": 50
+      },
+      "threshold": {
+        "threshold": -0.9146827483177185,
+        "high_threshold": -0.6725044274330138,
+        "low_threshold": -1.156861069202423
+      },
+      "feature": {
+        "energy": 1.0,
+        "zcr": 0.0,
+        "st_spectrum": 0.0,
+        "pitch": 0.0
+      }
+    },
+    "result": {
+      "acc": 0.9511832332984981,
+      "auc": 0.9663793203749526,
+      "eer": 0.08336922328567983,
+      "precision": 0.9676073677468235,
+      "recall": 0.9727793875989277,
+      "f1": 0.9701864797714634,
+      "far": 0.1449234910651616,
+      "frr": 0.027220612401058338,
+      "tp": 697941.0,
+      "fp": 23365.0,
+      "fn": 19530.0,
+      "tn": 137858.0,
+      "threshold_heatmap_path": "/Users/harsonli/Desktop/大三下/智能语音技术/Proj1/experiment_logs/image/threshold/task1_threshold_heatmap_20260430_143545.png",
+      "threshold": {
+        "threshold": -0.9146827483177185,
+        "high_threshold": -0.6725044274330138,
+        "low_threshold": -1.156861069202423
+      }
+    }
+  },
+  {
+    "exp_name": "tbl_energy_hamming_20260430_143546",
+    "model": "能量",
+    "window": "Hamming",
+    "config": {
+      "frame": {
+        "sample_rate": 16000,
+        "frame_size": 0.032,
+        "frame_shift": 0.008,
+        "window_type": "hamming",
+        "smooth_size": 50
+      },
+      "threshold": {
+        "threshold": -0.911256762444973,
+        "high_threshold": -0.4823305457830428,
+        "low_threshold": -1.340182979106903
+      },
+      "feature": {
+        "energy": 1.0,
+        "zcr": 0.0,
+        "st_spectrum": 0.0,
+        "pitch": 0.0
+      }
+    },
+    "result": {
+      "acc": 0.9445187972149469,
+      "auc": 0.9616552164084775,
+      "eer": 0.09093747343098188,
+      "precision": 0.9584519363136143,
+      "recall": 0.9742860687052024,
+      "f1": 0.9663041362228176,
+      "far": 0.18795085068506429,
+      "frr": 0.025713931294783682,
+      "tp": 699022.0,
+      "fp": 30302.0,
+      "fn": 18449.0,
+      "tn": 130921.0,
+      "threshold_heatmap_path": "/Users/harsonli/Desktop/大三下/智能语音技术/Proj1/experiment_logs/image/threshold/task1_threshold_heatmap_20260430_143713.png",
+      "threshold": {
+        "threshold": -0.911256762444973,
+        "high_threshold": -0.4823305457830428,
+        "low_threshold": -1.340182979106903
+      }
+    }
+  },
+  {
+    "exp_name": "tbl_zcr_no_20260430_143714",
+    "model": "过零率",
+    "window": "None",
+    "config": {
+      "frame": {
+        "sample_rate": 16000,
+        "frame_size": 0.032,
+        "frame_shift": 0.008,
+        "window_type": "no",
+        "smooth_size": 50
+      },
+      "threshold": {
+        "threshold": -3.2035849046707154,
+        "high_threshold": -3.2035849046707154,
+        "low_threshold": -3.2035849046707154
+      },
+      "feature": {
+        "energy": 0.0,
+        "zcr": 1.0,
+        "st_spectrum": 0.0,
+        "pitch": 0.0
+      }
+    },
+    "result": {
+      "acc": 0.8163797636037026,
+      "auc": 0.5650140508440633,
+      "eer": 0.413700344682921,
+      "precision": 0.8164940568263599,
+      "recall": 0.9998285644994571,
+      "f1": 0.8989086703865419,
+      "far": 0.9999999999999379,
+      "frr": 0.00017143550052893885,
+      "tp": 717348.0,
+      "fp": 161223.0,
+      "fn": 123.0,
+      "tn": 0.0,
+      "threshold_heatmap_path": "/Users/harsonli/Desktop/大三下/智能语音技术/Proj1/experiment_logs/image/threshold/task1_threshold_heatmap_20260430_143834.png",
+      "threshold": {
+        "threshold": -3.2035849046707154,
+        "high_threshold": -3.2035849046707154,
+        "low_threshold": -3.2035849046707154
+      }
+    }
+  },
+  {
+    "exp_name": "tbl_spectrum_no_20260430_143835",
+    "model": "频谱",
+    "window": "None",
+    "config": {
+      "frame": {
+        "sample_rate": 16000,
+        "frame_size": 0.032,
+        "frame_shift": 0.008,
+        "window_type": "no",
+        "smooth_size": 50
+      },
+      "threshold": {
+        "threshold": -0.9182294994592666,
+        "high_threshold": -0.868959594964981,
+        "low_threshold": -0.9674994039535523
+      },
+      "feature": {
+        "energy": 0.0,
+        "zcr": 0.0,
+        "st_spectrum": 1.0,
+        "pitch": 0.0
+      }
+    },
+    "result": {
+      "acc": 0.9399836575645112,
+      "auc": 0.9504476601720405,
+      "eer": 0.09988138893418688,
+      "precision": 0.9649933755748145,
+      "recall": 0.9613726547832461,
+      "f1": 0.9631796074978223,
+      "far": 0.15520118097292845,
+      "frr": 0.03862734521673993,
+      "tp": 689757.0,
+      "fp": 25022.0,
+      "fn": 27714.0,
+      "tn": 136201.0,
+      "threshold_heatmap_path": "/Users/harsonli/Desktop/大三下/智能语音技术/Proj1/experiment_logs/image/threshold/task1_threshold_heatmap_20260430_144005.png",
+      "threshold": {
+        "threshold": -0.9182294994592666,
+        "high_threshold": -0.868959594964981,
+        "low_threshold": -0.9674994039535523
+      }
+    }
+  },
+  {
+    "exp_name": "tbl_pitch_no_20260430_144006",
+    "model": "基频",
+    "window": "None",
+    "config": {
+      "frame": {
+        "sample_rate": 16000,
+        "frame_size": 0.032,
+        "frame_shift": 0.008,
+        "window_type": "no",
+        "smooth_size": 50
+      },
+      "threshold": {
+        "threshold": -1.5841401815414429,
+        "high_threshold": -1.5841401815414429,
+        "low_threshold": -1.5841401815414429
+      },
+      "feature": {
+        "energy": 0.0,
+        "zcr": 0.0,
+        "st_spectrum": 0.0,
+        "pitch": 1.0
+      }
+    },
+    "result": {
+      "acc": 0.8166745192296656,
+      "auc": 0.503293010997227,
+      "eer": 0.4469225933870498,
+      "precision": 0.817885758948355,
+      "recall": 0.9976124470535952,
+      "f1": 0.8988530048700184,
+      "far": 0.9885314130117298,
+      "frr": 0.0023875529463908314,
+      "tp": 715758.0,
+      "fp": 159374.0,
+      "fn": 1713.0,
+      "tn": 1849.0,
+      "threshold_heatmap_path": "/Users/harsonli/Desktop/大三下/智能语音技术/Proj1/experiment_logs/image/threshold/task1_threshold_heatmap_20260430_144130.png",
+      "threshold": {
+        "threshold": -1.5841401815414429,
+        "high_threshold": -1.5841401815414429,
+        "low_threshold": -1.5841401815414429
+      }
+    }
+  },
+  {
+    "exp_name": "tbl_energy_zcr_no_20260430_144130",
+    "model": "能量&过零率",
+    "window": "None",
+    "config": {
+      "frame": {
+        "sample_rate": 16000,
+        "frame_size": 0.032,
+        "frame_shift": 0.008,
+        "window_type": "no",
+        "smooth_size": 50
+      },
+      "threshold": {
+        "threshold": -0.7921531352400779,
+        "high_threshold": -0.488282713294029,
+        "low_threshold": -1.0960235571861268
+      },
+      "feature": {
+        "energy": 0.8,
+        "zcr": 0.2,
+        "st_spectrum": 0.0,
+        "pitch": 0.0
+      }
+    },
+    "result": {
+      "acc": 0.9349967110279468,
+      "auc": 0.9535988132505073,
+      "eer": 0.10380071110888106,
+      "precision": 0.9496106138533916,
+      "recall": 0.9719654174175545,
+      "f1": 0.9606579774669544,
+      "far": 0.2295206018992185,
+      "frr": 0.02803458258243151,
+      "tp": 697357.0,
+      "fp": 37004.0,
+      "fn": 20114.0,
+      "tn": 124219.0,
+      "threshold_heatmap_path": "/Users/harsonli/Desktop/大三下/智能语音技术/Proj1/experiment_logs/image/threshold/task1_threshold_heatmap_20260430_144257.png",
+      "threshold": {
+        "threshold": -0.7921531352400779,
+        "high_threshold": -0.488282713294029,
+        "low_threshold": -1.0960235571861268
+      }
+    }
+  },
+  {
+    "exp_name": "tbl_energy_zcr_hamming_20260430_144258",
+    "model": "能量&过零率",
+    "window": "Hamming",
+    "config": {
+      "frame": {
+        "sample_rate": 16000,
+        "frame_size": 0.032,
+        "frame_shift": 0.008,
+        "window_type": "hamming",
+        "smooth_size": 50
+      },
+      "threshold": {
+        "threshold": -0.7991626584529876,
+        "high_threshold": -0.5127745509147643,
+        "low_threshold": -1.085550765991211
+      },
+      "feature": {
+        "energy": 0.8,
+        "zcr": 0.2,
+        "st_spectrum": 0.0,
+        "pitch": 0.0
+      }
+    },
+    "result": {
+      "acc": 0.9338427256815122,
+      "auc": 0.9480973785460676,
+      "eer": 0.11213275519149903,
+      "precision": 0.9485610566175211,
+      "recall": 0.9716685413068825,
+      "f1": 0.9599757595867121,
+      "far": 0.23448887565668455,
+      "frr": 0.02833145869310358,
+      "tp": 697144.0,
+      "fp": 37805.0,
+      "fn": 20327.0,
+      "tn": 123418.0,
+      "threshold_heatmap_path": "/Users/harsonli/Desktop/大三下/智能语音技术/Proj1/experiment_logs/image/threshold/task1_threshold_heatmap_20260430_144431.png",
+      "threshold": {
+        "threshold": -0.7991626584529876,
+        "high_threshold": -0.5127745509147643,
+        "low_threshold": -1.085550765991211
+      }
+    }
+  }
+]

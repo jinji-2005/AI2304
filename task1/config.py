@@ -7,6 +7,8 @@ class FrameConfig:
     sample_rate: int = 16000
     frame_size: float = 0.032
     frame_shift: float = 0.008
+    window_type : str = "no" # "hamming"/ "hanning" / "none"
+    smooth_size: int = 50
 
 
 @dataclass
@@ -28,6 +30,12 @@ class ThresholdConfig:
     high_threshold: float = 0.6
     low_threshold: float = 0.4
 
+@dataclass
+class FeatureConfig:
+    energy: float = 1
+    zcr: float = 0
+    st_spectrum: float = 0
+    pitch: float = 0
 
 @dataclass
 class Task1Config:

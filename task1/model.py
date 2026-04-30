@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from tqdm.auto import tqdm
-
+from config import FeatureConfig
 
 @dataclass
 class ThresholdParams:
@@ -16,6 +16,8 @@ class VADclassifier:
 
     def __init__(self, params: ThresholdParams):
         self.params = params
+        self.threshold_candidates: np.ndarray | None = None
+        self.threshold_acc_matrix: np.ndarray | None = None
 
     def fit(self, features: np.ndarray, labels: np.ndarray) -> None:
         """Optional calibration stage on development data.
@@ -41,21 +43,24 @@ class VADclassifier:
         scores = self.score_frames(x)
         # Search (high, low) directly with the same hysteresis rule as predict_frames.
         # This avoids mismatch between fit-time threshold and inference-time decoding.
-        candidates = np.unique(np.quantile(scores, np.linspace(0.02, 0.98, 49)))
+        candidates = np.unique(np.quantile(scores, np.linspace(0.02, 0.98, 25)))
 
         best_acc = -1.0
         best_high = float(candidates[-1])
         best_low = float(candidates[0])
+        acc_matrix = np.full((len(candidates), len(candidates)), np.nan, dtype=np.float32)
         total_pairs = len(candidates) * (len(candidates) + 1) // 2
         with tqdm(total=total_pairs, desc="threshold search", unit="pair", leave=False) as pbar:
             for low_idx, low in enumerate(candidates):
-                for high in candidates[low_idx:]:
+                for high_idx in range(low_idx, len(candidates)):
+                    high = float(candidates[high_idx])
                     pbar.update(1)
-                    pred = self._decode_hysteresis(scores, float(high), float(low))
+                    pred = self._decode_hysteresis(scores, high, float(low))
                     acc = float(np.mean(pred == y))
+                    acc_matrix[low_idx, high_idx] = acc
                     if acc > best_acc:
                         best_acc = acc
-                        best_high = float(high)
+                        best_high = high
                         best_low = float(low)
                         pbar.set_postfix(
                             {
@@ -68,6 +73,8 @@ class VADclassifier:
         self.params.high_threshold = best_high
         self.params.low_threshold = best_low
         self.params.threshold = (best_high + best_low) / 2.0
+        self.threshold_candidates = candidates.astype(np.float32)
+        self.threshold_acc_matrix = acc_matrix
 
     def score_frames(self, features: np.ndarray) -> np.ndarray:
         """Return frame-level speech scores/probabilities in [0, 1].
@@ -79,8 +86,29 @@ class VADclassifier:
           - AUC/EER calculation on dev (prefer continuous scores)
           - threshold decoding in predict_frames/postprocess
         """
-        # Score can come from simple linear combination of handcrafted features.
-        score = features[:,0] * 1 + (1-features[:,1]) * 0
+        # Score from multiple handcrafted features:
+        # - energy: higher tends to speech
+        # - zcr: too high often noisy/unvoiced, give a mild negative weight
+        # - short-time spectrum statistic: higher tends to speech-rich frames
+        # - pitch(F0): periodic voiced cue
+        x = np.asarray(features, dtype=np.float32)
+        if x.ndim == 1:
+            x = x.reshape(-1, 1)
+        t = x.shape[0]
+
+        energy = x[:, 0] if x.shape[1] > 0 else np.zeros(t, dtype=np.float32)
+        zcr = x[:, 1] if x.shape[1] > 1 else np.zeros(t, dtype=np.float32)
+        st_spectrum = x[:, 2] if x.shape[1] > 2 else np.zeros(t, dtype=np.float32)
+        pitch = x[:, 3] if x.shape[1] > 3 else np.zeros(t, dtype=np.float32)
+
+        fea_cfg = FeatureConfig()
+
+        score = (
+            fea_cfg.energy * energy
+            - fea_cfg.zcr * zcr
+            + fea_cfg.st_spectrum * st_spectrum
+            + fea_cfg.pitch * pitch
+        )
         score = np.asarray(score)
         return score.astype(np.float32)
                 

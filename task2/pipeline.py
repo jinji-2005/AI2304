@@ -114,7 +114,7 @@ def sweep_best_threshold_by_acc(
         correct = 0
         for score_arr, label_arr in pairs:
             pred = (score_arr >= float(threshold)).astype(np.int64)
-            pred = smooth_predictions(pred, kernel_size=smooth_kernel_size)
+            # pred = smooth_predictions(pred, kernel_size=smooth_kernel_size)
             correct += int(np.sum(pred == label_arr))
         acc = correct / total_frames
         if acc > best_acc:

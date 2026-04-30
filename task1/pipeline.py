@@ -1,8 +1,10 @@
 from functools import lru_cache
 from importlib.util import module_from_spec, spec_from_file_location
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, Tuple
-import librosa
+
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm.auto import tqdm
 
@@ -17,6 +19,53 @@ from features import framing, apply_window, extract_short_time_features, stack_f
 from model import ThresholdParams, VADclassifier
 from postprocess import frame_prediction_to_label_line,smooth_predictions
 
+def _safe_div(num: float, den: float, eps: float = 1e-8) -> float:
+    return float(num) / float(den + eps)
+
+
+def evaluate_metrics(
+    pred_scores: np.ndarray,
+    pred_labels: np.ndarray,
+    label_binary: np.ndarray,
+    project_root: Path,
+) -> dict[str, float]:
+    """Compute key frame-level metrics for Task1 dev evaluation."""
+    score_arr = np.asarray(pred_scores).reshape(-1)
+    pred_arr = np.asarray(pred_labels).reshape(-1).astype(np.int64)
+    label_arr = np.asarray(label_binary).reshape(-1).astype(np.int64)
+
+    if score_arr.shape != label_arr.shape or pred_arr.shape != label_arr.shape:
+        raise ValueError(
+            f"shape mismatch: score={score_arr.shape}, pred={pred_arr.shape}, label={label_arr.shape}"
+        )
+
+    auc, eer = compute_auc_eer(score_arr, label_arr, project_root)
+    tp = int(np.sum((pred_arr == 1) & (label_arr == 1)))
+    fp = int(np.sum((pred_arr == 1) & (label_arr == 0)))
+    fn = int(np.sum((pred_arr == 0) & (label_arr == 1)))
+    tn = int(np.sum((pred_arr == 0) & (label_arr == 0)))
+
+    acc = _safe_div(tp + tn, tp + tn + fp + fn)
+    precision = _safe_div(tp, tp + fp)
+    recall = _safe_div(tp, tp + fn)
+    f1 = _safe_div(2 * precision * recall, precision + recall)
+    far = _safe_div(fp, fp + tn)
+    frr = _safe_div(fn, fn + tp)
+
+    return {
+        "acc": float(acc),
+        "auc": float(auc),
+        "eer": float(eer),
+        "precision": float(precision),
+        "recall": float(recall),
+        "f1": float(f1),
+        "far": float(far),
+        "frr": float(frr),
+        "tp": float(tp),
+        "fp": float(fp),
+        "fn": float(fn),
+        "tn": float(tn),
+    }
 
 def _evaluate_py_path(project_root: Path) -> Path:
     return (
@@ -63,6 +112,74 @@ def compute_auc_eer(
     auc, eer = get_metrics(pred_arr.tolist(), label_arr.tolist())
     return float(auc), float(eer)
 
+
+def save_threshold_heatmap(model: VADclassifier, project_root: Path) -> Path | None:
+    """Save high/low threshold triangular-accuracy heatmap image."""
+    candidates = model.threshold_candidates
+    acc_matrix = model.threshold_acc_matrix
+    if candidates is None or acc_matrix is None:
+        return None
+
+    out_dir = Path(project_root) / "experiment_logs" / "image" / "threshold"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_path = out_dir / f"task1_threshold_heatmap_{ts}.png"
+
+    valid = ~np.isnan(acc_matrix)
+    if not np.any(valid):
+        return None
+    vmin = float(np.nanmin(acc_matrix))
+    vmax = float(np.nanmax(acc_matrix))
+
+    plot_matrix = np.ma.masked_invalid(acc_matrix)
+    cmap = plt.cm.viridis.copy()
+    cmap.set_bad(color="white")
+
+    fig, ax = plt.subplots(figsize=(8.5, 7.0))
+    im = ax.imshow(
+        plot_matrix,
+        origin="lower",
+        interpolation="nearest",
+        aspect="auto",
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+    )
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("Accuracy", rotation=270, labelpad=12)
+
+    tick_count = min(8, len(candidates))
+    tick_idx = np.linspace(0, len(candidates) - 1, tick_count, dtype=int)
+    tick_labels = [f"{float(candidates[i]):.3f}" for i in tick_idx]
+    ax.set_xticks(tick_idx)
+    ax.set_xticklabels(tick_labels, rotation=35, ha="right")
+    ax.set_yticks(tick_idx)
+    ax.set_yticklabels(tick_labels)
+    ax.set_xlabel("high threshold")
+    ax.set_ylabel("low threshold")
+    ax.set_title("Task1 Threshold Search Accuracy Heatmap")
+
+    best_high = float(model.params.high_threshold)
+    best_low = float(model.params.low_threshold)
+    high_idx = int(np.argmin(np.abs(candidates - best_high)))
+    low_idx = int(np.argmin(np.abs(candidates - best_low)))
+    ax.scatter(high_idx, low_idx, marker="x", s=90, c="red", linewidths=2, label="best pair")
+    ax.annotate(
+        f"high={best_high:.4f}\nlow={best_low:.4f}",
+        xy=(high_idx, low_idx),
+        xytext=(10, -10),
+        textcoords="offset points",
+        color="red",
+        fontsize=9,
+        bbox={"boxstyle": "round,pad=0.2", "fc": "white", "ec": "red", "alpha": 0.9},
+    )
+    ax.legend(loc="upper left")
+
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=160)
+    plt.close(fig)
+    return out_path
+
 def build_xy(split: str, label_path: Path , project_root: Path): # split = 'train' 'dev' 'test'
     data_root = (
         Path(project_root)
@@ -97,7 +214,8 @@ def build_xy(split: str, label_path: Path , project_root: Path): # split = 'trai
             frame_size=frame_cfg.frame_size,
             frame_shift=frame_cfg.frame_shift,
         )
-        frames = apply_window(frames, window="hamming")
+
+        frames = apply_window(frames, window=frame_cfg.window_type)
 
         feat_dict = extract_short_time_features(frames)
         x = stack_features(feat_dict)  # (T, D)
@@ -138,10 +256,9 @@ def run_dev_pipeline(project_root: Path) -> Dict:
     )
     path_cfg = PathConfig(data_root=data_root)
     model = VADclassifier(ThresholdParams())
-
-    x_all,y_all = build_xy('train',path_cfg.train_label_path,project_root)
-    #x_all,y_all = build_xy('dev',path_cfg.dev_label_path,project_root)
-
+    frame_cfg = FrameConfig()
+    x_all,y_all = build_xy('dev',path_cfg.dev_label_path,project_root)
+    #x_all,y_all = build_xy('train',path_cfg.train_label_path,project_root)
     # print(np.mean(x_all))
     # print(np.min(x_all))
     # print(np.max(x_all))
@@ -156,19 +273,15 @@ def run_dev_pipeline(project_root: Path) -> Dict:
     print(model.params.low_threshold)
     
     # 开发集评估
+    scores_dev = model.score_frames(x_all)
+    preds_dev = model.predict_frames(x_all)
+    preds_dev = smooth_predictions(preds_dev, kernel_size=frame_cfg.smooth_size)
 
-    x_dev , y_dev = build_xy('dev',path_cfg.dev_label_path,project_root)
-    scores_dev = model.score_frames(x_dev)
-    preds_dev = model.predict_frames(x_dev)
-    preds_dev = smooth_predictions(preds_dev,kernel_size=3)
-    acc = compute_acc(preds_dev,y_dev)
-    auc , eer = compute_auc_eer(scores_dev,y_dev,Path(project_root))
-    
-    out = {}
-    out['acc'] = acc
-    out['auc'] = auc
-    out['eer'] = eer
-    out['threshold'] = learned_threshold
+    out = evaluate_metrics(scores_dev, preds_dev, y_all, project_root)
+    heatmap_path = save_threshold_heatmap(model, project_root)
+    if heatmap_path is not None:
+        out["threshold_heatmap_path"] = str(heatmap_path)
+    out["threshold"] = learned_threshold
     return out
     
     
@@ -202,6 +315,11 @@ def run_test_pipeline(project_root: Path, output_path: Path) -> Dict:
         "high_threshold": float(model.params.high_threshold),
         "low_threshold": float(model.params.low_threshold),
     }
+    # 确保一下
+    # scores_dev = model.score_frames(x_dev)
+    # preds_dev = model.predict_frames(x_dev)
+    # preds_dev = smooth_predictions(preds_dev, kernel_size=frame_cfg.smooth_size)
+    # print(evaluate_metrics(scores_dev, preds_dev, y_dev, project_root))
     
     # 测试测试集
     wave_files = list_wav_files(path_cfg.wav_root / 'test')
@@ -214,11 +332,13 @@ def run_test_pipeline(project_root: Path, output_path: Path) -> Dict:
 
             waveform = load_waveform(wav_path, frame_cfg.sample_rate)
             frames = framing(waveform, frame_cfg.sample_rate, frame_cfg.frame_size, frame_cfg.frame_shift)
-            frames = apply_window(frames, window="hamming")
+    
+            frames = apply_window(frames, window=frame_cfg.window_type)
             feat_dict = extract_short_time_features(frames)
             x_test = stack_features(feat_dict)
 
             pred = model.predict_frames(x_test)  # shape (T,), 0/1 from dual-threshold decode
+            pred = smooth_predictions(pred, kernel_size= frame_cfg.smooth_size)
             seg_str = frame_prediction_to_label_line(
                 pred,
                 frame_cfg.frame_size,
@@ -256,3 +376,13 @@ def compute_acc(pred_binary: np.ndarray, label_binary: np.ndarray) -> float:
     pred_arr = pred_arr.astype(np.int64)
     label_arr = label_arr.astype(np.int64)
     return float(np.mean(pred_arr == label_arr))
+
+# project_root = Path(__file__).resolve().parents[1]
+# data_root = (
+#         Path(project_root)
+#         / "voice-activity-detection-sjtu-spring-2024"
+#         / "vad"
+#     )
+# path_cfg = PathConfig(data_root=data_root)
+# x_all,y_all = build_xy('dev',path_cfg.dev_label_path,project_root)
+# print(np.mean(y_all == 1))

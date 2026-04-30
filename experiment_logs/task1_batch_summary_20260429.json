@@ -1,0 +1,192 @@
+[
+  {
+    "exp_name": "energy_无窗",
+    "window_type": "no",
+    "weights": {
+      "energy": 1.0,
+      "zcr": 0.0,
+      "st_spectrum": 0.0,
+      "pitch": 0.0
+    },
+    "returncode": 0,
+    "acc": 0.931688392090979,
+    "auc": 0.9663793203749526,
+    "eer": 0.08336922328567983,
+    "threshold": {
+      "threshold": -0.9146827483177185,
+      "high_threshold": -0.6725044274330138,
+      "low_threshold": -1.156861069202423
+    }
+  },
+  {
+    "exp_name": "energy_有窗",
+    "window_type": "hamming",
+    "weights": {
+      "energy": 1.0,
+      "zcr": 0.0,
+      "st_spectrum": 0.0,
+      "pitch": 0.0
+    },
+    "returncode": 0,
+    "acc": 0.9278429123221402,
+    "auc": 0.9616552164084775,
+    "eer": 0.09093747343098188,
+    "threshold": {
+      "threshold": -0.911256762444973,
+      "high_threshold": -0.4823305457830428,
+      "low_threshold": -1.340182979106903
+    }
+  },
+  {
+    "exp_name": "zcr_无窗",
+    "window_type": "no",
+    "weights": {
+      "energy": 0.0,
+      "zcr": 1.0,
+      "st_spectrum": 0.0,
+      "pitch": 0.0
+    },
+    "returncode": 0,
+    "acc": 0.7969725524471455,
+    "auc": 0.5650140508440633,
+    "eer": 0.413700344682921,
+    "threshold": {
+      "threshold": -3.2035849046707154,
+      "high_threshold": -3.2035849046707154,
+      "low_threshold": -3.2035849046707154
+    }
+  },
+  {
+    "exp_name": "zcr_有窗",
+    "window_type": "hamming",
+    "weights": {
+      "energy": 0.0,
+      "zcr": 1.0,
+      "st_spectrum": 0.0,
+      "pitch": 0.0
+    },
+    "returncode": 0,
+    "acc": 0.7969725524471455,
+    "auc": 0.5650141010330328,
+    "eer": 0.413700344682921,
+    "threshold": {
+      "threshold": -3.2035849046707154,
+      "high_threshold": -3.2035849046707154,
+      "low_threshold": -3.2035849046707154
+    }
+  },
+  {
+    "exp_name": "st_spectrum_无窗",
+    "window_type": "no",
+    "weights": {
+      "energy": 0.0,
+      "zcr": 0.0,
+      "st_spectrum": 1.0,
+      "pitch": 0.0
+    },
+    "returncode": 0,
+    "acc": 0.9056668191657061,
+    "auc": 0.9504476601720405,
+    "eer": 0.09988138893418688,
+    "threshold": {
+      "threshold": -0.9182294994592666,
+      "high_threshold": -0.868959594964981,
+      "low_threshold": -0.9674994039535523
+    }
+  },
+  {
+    "exp_name": "st_spectrum_有窗",
+    "window_type": "hamming",
+    "weights": {
+      "energy": 0.0,
+      "zcr": 0.0,
+      "st_spectrum": 1.0,
+      "pitch": 0.0
+    },
+    "returncode": 0,
+    "acc": 0.8933326049796528,
+    "auc": 0.9424269996219587,
+    "eer": 0.11018842573428055,
+    "threshold": {
+      "threshold": -0.8905084198713302,
+      "high_threshold": -0.8532755613327027,
+      "low_threshold": -0.9277412784099579
+    }
+  },
+  {
+    "exp_name": "pitch_无窗",
+    "window_type": "no",
+    "weights": {
+      "energy": 0.0,
+      "zcr": 0.0,
+      "st_spectrum": 0.0,
+      "pitch": 1.0
+    },
+    "returncode": 0,
+    "acc": 0.8058880565930711,
+    "auc": 0.503293010997227,
+    "eer": 0.4469225933870498,
+    "threshold": {
+      "threshold": -1.5841401815414429,
+      "high_threshold": -1.5841401815414429,
+      "low_threshold": -1.5841401815414429
+    }
+  },
+  {
+    "exp_name": "pitch_有窗",
+    "window_type": "hamming",
+    "weights": {
+      "energy": 0.0,
+      "zcr": 0.0,
+      "st_spectrum": 0.0,
+      "pitch": 1.0
+    },
+    "returncode": 0,
+    "acc": 0.8059813769070825,
+    "auc": 0.4637023369861776,
+    "eer": 0.5125015505853199,
+    "threshold": {
+      "threshold": -1.6696088314056396,
+      "high_threshold": -1.6696088314056396,
+      "low_threshold": -1.6696088314056396
+    }
+  },
+  {
+    "exp_name": "energy0.8_zcr0.2_无窗",
+    "window_type": "no",
+    "weights": {
+      "energy": 0.8,
+      "zcr": 0.2,
+      "st_spectrum": 0.0,
+      "pitch": 0.0
+    },
+    "returncode": 0,
+    "acc": 0.9163303721204319,
+    "auc": 0.9535988132505073,
+    "eer": 0.10380071110888106,
+    "threshold": {
+      "threshold": -0.7921531352400779,
+      "high_threshold": -0.488282713294029,
+      "low_threshold": -1.0960235571861268
+    }
+  },
+  {
+    "exp_name": "energy0.8_zcr0.2_有窗",
+    "window_type": "hamming",
+    "weights": {
+      "energy": 0.8,
+      "zcr": 0.2,
+      "st_spectrum": 0.0,
+      "pitch": 0.0
+    },
+    "returncode": 0,
+    "acc": 0.9114003282143623,
+    "auc": 0.9480973785460676,
+    "eer": 0.11213275519149903,
+    "threshold": {
+      "threshold": -0.7991626584529876,
+      "high_threshold": -0.5127745509147643,
+      "low_threshold": -1.085550765991211
+    }
+  }
+]
