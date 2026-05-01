@@ -49,7 +49,7 @@ class FeatureConfig:
 class ModelConfig:
     model_type: str = field(default_factory=lambda: _env_str("TASK2_MODEL_TYPE", "dnn"))  # gmm/dnn
     dnn_variant: str = field(default_factory=lambda: _env_str("TASK2_DNN_VARIANT", "mlp"))  # mlp/bn_dropout
-    train_epoch: int = field(default_factory=lambda: _env_int("TASK2_TRAIN_EPOCH", 20))
+    train_epoch: int = field(default_factory=lambda: _env_int("TASK2_TRAIN_EPOCH", 100))
     batch_size: int = field(default_factory=lambda: _env_int("TASK2_BATCH_SIZE", 5210))
     learning_rate: float = field(default_factory=lambda: _env_float("TASK2_LEARNING_RATE", 1e-3))
     weight_decay: float = field(default_factory=lambda: _env_float("TASK2_WEIGHT_DECAY", 1e-5))
@@ -59,7 +59,7 @@ class ModelConfig:
     use_focal_loss: bool = field(default_factory=lambda: _env_bool("TASK2_USE_FOCAL_LOSS", True))
     focal_alpha: float = field(default_factory=lambda: _env_float("TASK2_FOCAL_ALPHA", 0.25))
     focal_gamma: float = field(default_factory=lambda: _env_float("TASK2_FOCAL_GAMMA", 2.0))
-    smooth_kernel_size: int = field(default_factory=lambda: _env_int("TASK2_SMOOTH_KERNEL_SIZE", 15))
+    smooth_kernel_size: int = field(default_factory=lambda: _env_int("TASK2_SMOOTH_KERNEL_SIZE", 10))
     threshold_min: float = field(default_factory=lambda: _env_float("TASK2_THRESHOLD_MIN", 0.10))
     threshold_max: float = field(default_factory=lambda: _env_float("TASK2_THRESHOLD_MAX", 0.90))
     threshold_step: float = field(default_factory=lambda: _env_float("TASK2_THRESHOLD_STEP", 0.01))
