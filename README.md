@@ -4,6 +4,13 @@ This repository implements a complete frame-level voice activity detection (VAD)
 
 > The course dataset, generated predictions, experiment logs and submission packages are intentionally excluded. The reported numbers below come from the original development split and are kept only as a concise reproducibility reference.
 
+## Assignment materials
+
+- [Complete Project 1 requirements](docs/assignment/project1-vad-requirements.pdf): the original 10-page course brief, including the two task definitions, dataset and label formats, evaluation metrics, submission structure, deadline and grading breakdown.
+- [Final report (anonymized)](output/pdf/project1-vad-report-anonymized.pdf): the submitted technical report covering both tasks, experimental settings, ablations, results and analysis. The student name and identifier have been removed; the technical content and figures are unchanged.
+
+The course brief is the authoritative statement of the assignment. In short, Task 1 requires a linear VAD based on short-time signal features, while Task 2 requires a statistical classifier using frequency-domain features. Each task must produce test-set speech intervals, and the report must evaluate development-set performance using metrics such as accuracy, ROC/AUC and EER.
+
 ## What is implemented
 
 | Track | Features | Classifier | Main idea |
@@ -44,7 +51,10 @@ Additional retained figures are available in [`docs/assets`](docs/assets).
 ├── task2/                         # Spectral features and GMM/DNN VAD
 ├── voice-activity-detection-sjtu-spring-2024/
 │   └── vad/                       # Evaluation and label-conversion helpers
-├── docs/assets/                   # Selected, anonymized result figures
+├── docs/
+│   ├── assignment/               # Complete course assignment specification
+│   └── assets/                   # Selected, anonymized result figures
+├── output/pdf/                   # Anonymized final report
 ├── experiment_logger.py           # Portable JSONL experiment metadata
 └── requirements.txt
 ```
