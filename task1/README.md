@@ -1,24 +1,23 @@
-# Task1 Scaffold (Short-Time Features + Threshold Classifier)
+# Task 1: short-time features and threshold VAD
 
-This folder is a code scaffold only. Fill TODO sections by yourself.
+This implementation performs frame-level voice activity detection using short-time energy, zero-crossing rate, spectrum and pitch features. It searches a pair of hysteresis thresholds on the development split, smooths frame decisions and converts them back to speech time segments.
 
-## Suggested workflow
+## Run
 
-1. Implement waveform loading and frame-level label alignment in `dataset.py`.
-2. Implement short-time **feature extraction** in `features.py`.
-3. Implement **threshold-based classifier** in `model.py`.
-4. Implement smoothing / segment conversion in `postprocess.py`.
-5. Connect the full pipeline in `pipeline.py`.
-6. Use `run_dev.py` for development evaluation.
-7. Use `run_test.py` to generate `test_label.txt`.
+From the repository root:
+
+```bash
+python task1/run_dev.py
+python task1/run_test.py --output task1/test_label.txt
+```
+
+The dataset must first be placed under `voice-activity-detection-sjtu-spring-2024/vad/` as described in the project-level README.
 
 ## Files
 
-- `config.py`: task configuration dataclasses.
-- `dataset.py`: dataset and label I/O.
+- `config.py`: frame, feature and threshold settings.
+- `dataset.py`: waveform and frame-label loading.
 - `features.py`: short-time feature extraction.
-- `model.py`: threshold classifier skeleton.
-- `postprocess.py`: frame-to-segment conversion.
-- `pipeline.py`: train/eval/inference orchestration.
-- `run_dev.py`: CLI entry for dev set evaluation.
-- `run_test.py`: CLI entry for test set inference.
+- `model.py`: weighted scoring and hysteresis-threshold search.
+- `postprocess.py`: smoothing and frame-to-segment conversion.
+- `pipeline.py`: development evaluation and test inference.

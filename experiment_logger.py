@@ -33,6 +33,28 @@ def _to_jsonable(obj: Any) -> Any:
     return obj
 
 
+def _portable_paths(obj: Any, project_root: Path) -> Any:
+    """Replace machine-specific absolute paths in an experiment record."""
+    if isinstance(obj, Mapping):
+        return {str(k): _portable_paths(v, project_root) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_portable_paths(v, project_root) for v in obj]
+    if not isinstance(obj, str):
+        return obj
+
+    path = Path(obj)
+    if not path.is_absolute():
+        return obj
+
+    for base, prefix in ((project_root, "."), (Path.home(), "~")):
+        try:
+            relative = path.relative_to(base)
+        except ValueError:
+            continue
+        return str(Path(prefix) / relative)
+    return f"<absolute-path>/{path.name}" if path.name else "<absolute-path>"
+
+
 def _run_git(project_root: Path, args: Sequence[str]) -> str | None:
     try:
         out = subprocess.run(
@@ -84,19 +106,22 @@ def write_experiment_log(
 
     log_path = log_dir / f"{task}_{mode}.jsonl"
     now_local = datetime.now().astimezone()
-    record = {
-        "timestamp_local": now_local.isoformat(),
-        "task": task,
-        "mode": mode,
-        "status": status,
-        "duration_sec": round(float(duration_sec), 4),
-        "command": list(command),
-        "git": collect_git_info(project_root),
-        "config": _to_jsonable(config or {}),
-        "result": _to_jsonable(result or {}),
-        "extra": _to_jsonable(extra or {}),
-        "error": error,
-    }
+    record = _portable_paths(
+        {
+            "timestamp_local": now_local.isoformat(),
+            "task": task,
+            "mode": mode,
+            "status": status,
+            "duration_sec": round(float(duration_sec), 4),
+            "command": list(command),
+            "git": collect_git_info(project_root),
+            "config": _to_jsonable(config or {}),
+            "result": _to_jsonable(result or {}),
+            "extra": _to_jsonable(extra or {}),
+            "error": error,
+        },
+        project_root,
+    )
 
     with log_path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
