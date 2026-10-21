@@ -46,8 +46,8 @@ class DNNClassifier:
         # 先验与状态
         self.prior_speech: float = 0.5
         self.is_fitted: bool = False
-        default_output = "/home/lihaochen/Work_Dir/AI2304/experiment_logs"
-        self.output_dir = Path(os.getenv("TASK2_OUTPUT_DIR", default_output)).resolve()
+        default_output = Path(__file__).resolve().parents[1] / "experiment_logs"
+        self.output_dir = Path(os.getenv("TASK2_OUTPUT_DIR", str(default_output))).resolve()
         self._gmm_plot_dir = self.output_dir / "images" / "gmm"
         self._dnn_plot_dir = self.output_dir / "images" / "dnn"
 

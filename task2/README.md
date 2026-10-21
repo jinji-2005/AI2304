@@ -1,24 +1,27 @@
-# Task2 Scaffold (Spectral Features + Statistical Model)
+# Task 2: spectral features with GMM/DNN VAD
 
-This folder is a code scaffold only. Fill TODO sections by yourself.
+This implementation extracts FBank or MFCC features, optionally adds first- and second-order deltas, applies CMVN and context splicing, then trains either class-conditional GMMs or a PyTorch MLP. The decoding threshold is selected on the development split.
 
-## Suggested workflow
+## Run
 
-1. Implement data loading and frame-level supervision in `dataset.py`.
-2. Implement spectral feature extraction (MFCC/FBank/PLP) in `features.py`.
-3. Implement statistical model training/inference in `model.py`.
-4. Add post-processing and segment conversion in `postprocess.py`.
-5. Connect everything in `pipeline.py`.
-6. Use `run_dev.py` for development evaluation.
-7. Use `run_test.py` to generate `test_label.txt`.
+From the repository root:
+
+```bash
+python task2/run_dev.py
+python task2/run_test.py --output task2/test_label.txt
+```
+
+Task 2 can be configured through `TASK2_*` environment variables. For example:
+
+```bash
+TASK2_MODEL_TYPE=gmm TASK2_FEATURE_TYPE=mfcc python task2/run_dev.py
+```
 
 ## Files
 
-- `config.py`: task configuration dataclasses.
-- `dataset.py`: dataset and label I/O.
-- `features.py`: short-time feature extraction.
-- `model.py`: threshold classifier skeleton.
-- `postprocess.py`: frame-to-segment conversion.
-- `pipeline.py`: train/eval/inference orchestration.
-- `run_dev.py`: CLI entry for dev set evaluation.
-- `run_test.py`: CLI entry for test set inference.
+- `config.py`: frame, feature and model settings.
+- `dataset.py`: waveform and frame-label loading.
+- `features.py`: FBank/MFCC, CMVN, deltas and context splicing.
+- `model.py`: GMM and DNN classifiers.
+- `postprocess.py`: smoothing and frame-to-segment conversion.
+- `pipeline.py`: training, threshold tuning, evaluation and inference.
